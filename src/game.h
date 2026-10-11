@@ -17,7 +17,7 @@ static const float PLAYER_H = 1.15f;
 static const float GRAVITY = 30.f;
 static const float SIM_DT = 1.f / 120.f;
 
-enum LevelId { LV_HUB = 0, LV_WHARF, LV_CLOCK, LV_VAULTS, LV_SPIRE, LV_JUNK, LV_ENDLESS, LV_HOME, LV_CITY, LV_ARENA, LV_GOLF, LV_COUNT };
+enum LevelId { LV_HUB = 0, LV_WHARF, LV_CLOCK, LV_VAULTS, LV_SPIRE, LV_JUNK, LV_ENDLESS, LV_HOME, LV_CITY, LV_ARENA, LV_CLIMB, LV_COUNT };
 
 // ------------------------------------------------------------------ input
 enum Action { A_FWD, A_BACK, A_LEFT, A_RIGHT, A_JUMP, A_DASH, A_THROW, A_WARP, A_BLOOM, A_INTERACT, A_PAUSE, A_JOURNAL, A_GRAPPLE, A_FIREWALL, A_OVERCLOCK, A_COUNT };
@@ -149,7 +149,7 @@ struct Level {
     std::vector<Talker> talkers;
     std::vector<Spinner> spinners;
     std::vector<Emitter> emitters;
-    struct RouteStep { int op; V3 p; };  // 0 goto, 1 throw+warp, 2 throw+recall, 3 fight, 4 boss, 5 bloom
+    struct RouteStep { int op; V3 p; };  // 0 goto, 1 throw+warp, 2 throw+recall, 3 fight, 4 boss, 5 bloom, 9 moving lift
     std::vector<RouteStep> route;
     struct Breakable { V3 pos; int kind = 0; bool broken = false; };
     std::vector<Breakable> breakables;
@@ -270,7 +270,7 @@ struct SaveData {
     int kills = 0, bestCombo = 0, bounties = 0;     // lifetime stats (trophies)
     float rushBest = 0;                             // best Boss Rush time
     int gauntletBest = 0;                           // the Gauntlet: most waves survived
-    int golfHole = 1, golfPlayed = 0, golfScore = 0, golfAces = 0;  // Flame Golf: next hole, holes played, total vs par, holes-in-one
+    int climbBest = 0, climbRuns = 0;               // the Rising Dark: best height (m), runs
     int bountyDay = -1, bountyProg[3] = {0, 0, 0}, bountyDone = 0;  // the Night Board's daily bounties
     int fishCaught = 0;
     float raceBest = 0;                             // best candle-race time (0 = none)
@@ -421,13 +421,13 @@ struct Game {
     void rushStageEnter();
     void drawDyes(); void updateDyes(const InputState& in);
     void drawJournalPage2();
-    // --- fun forever: the Toy Box (silly modes), the Gauntlet (endless waves), Flame Golf (endless holes)
+    // --- fun forever: the Toy Box (silly modes), the Gauntlet (endless waves), the Rising Dark (endless climb)
     bool toy(int i) const { return has("toy." + std::to_string(i)); }
     void drawToys(); void updateToys(const InputState& in);
     int gWave = 0, gState = 0, gMod = -1, gQueue = 0, gLast = 0; float gT = 0, gSpawnT = 0;
     std::vector<V3> pendingBlasts;
     float killSlowT = 0;
-    int golfStrokes = 0, golfPar = 0; float golfDoneT = 0;
+    float tideY = -6, tideSpeed = 1.2f; bool climbOn = false; int climbH = 0, climbLast = -1;
     float gravityMul() const;
     float enemySpeedMul() const;
     void updateFunModes(float dt);

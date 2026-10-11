@@ -509,7 +509,7 @@ void Game::drawExtrasHUD() {
     // fishing
     if (fishState > 0) {
         float bw = 160 * s, bx = W / 2 - bw / 2, by = H * 0.72f;
-        if (fishState == 1) R->uiTextCentered(W / 2, by, "Waiting for a bite...   (" + ik + " reels in)", s, COL_TEXT);
+        if (fishState == 1) R->uiTextCentered(W / 2, by, "Waiting for a bite... watch the bobber for a SPLASH   (jump to stop)", s, COL_TEXT);
         else if (fishState == 2) R->uiTextCentered(W / 2, by - 6 * s, "!! BITE !!  PRESS " + ik, s * 2, std::fmod(t * 8, 1.f) < 0.5f ? C4(0xfff060) : C4(0xff8040));
         else {
             R->uiTextCentered(W / 2, by - 12 * s, "Press " + ik + " when the needle is in the GREEN", s, COL_TEXT);
@@ -826,6 +826,8 @@ void Game::drawHowTo() {
         "  Bosses have a moment of weakness - watch for the glow.\n"
         "  Hacked terminals flash a sequence: burn them in the same order.\n"
         "  Side jobs: Mira's cat, Old Fenn's braziers, Flick's candle race, fishing with Gil.\n"
+        "  FISHING: walk up to a fishing post on a dock (the Wharf, or the Hollow's west docks) and press E to cast.\n"
+        "    Wait for the SPLASH and '!! BITE !!', press E fast, then press E again when the white needle is in the GREEN.\n"
         "  Hats hide in secret corners - wear them via the mirror in Marrow's workshop.";
     R->uiText(20 * s, 34 * s, wrap(R, t, s, W - 40 * s), s, COL_TEXT);
     R->uiTextCentered(W / 2, H - 12 * s, "Press Esc or Enter to go back", s, COL_DIM);

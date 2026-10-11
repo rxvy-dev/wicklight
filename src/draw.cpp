@@ -12,6 +12,7 @@ void extrasLights(Game& g, Renderer* R);
 void drawPostgameNPC(Renderer* R, int who, V3 pos, float yaw, float t, const Game& g);
 void dyeColors(int dye, float t, V3& outer, V3& mid, V3& core);
 void funLights(Game& g, Renderer* R);
+void drawFunWorld(Game& g, Renderer* R);
 // the player's flame, in Wren's dye colours
 static void drawFlameDyed(Renderer* R, V3 p, float scale, float t, bool white, int dye, float alpha = 1);
 
@@ -674,6 +675,7 @@ static void drawGeometry(Game& g, Renderer* R) {
         }
     }
     drawWorldExtras(g, R);
+    drawFunWorld(g, R);
     // shockwave rings
     for (auto& r : g.rings) drawRing(R, r.c, r.r, r.color, 1.5f);
     // telegraphs

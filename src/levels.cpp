@@ -65,6 +65,10 @@ void buildHub(Level& L, Game& g) {
     boat(b, V3(-55, -3.6f, -10), -0.3f, 0.8f);
     b.exit(AABB(V3(-61, -3, -5), V3(-57, 2, 5)), LV_WHARF, 0, "", "", "WEST: The Sunken Wharf");
     b.hint(AABB(V3(-48, -3, -6), V3(-36, 3, 6)), "The Sunken Wharf lies beyond these docks.");
+    // fishing spots on the docks (the same as the Wharf's ones)
+    b.talker(V3(-51.5f, -2, 4.75f), 0, 16);
+    b.talker(V3(-51.5f, -2, -4.75f), PI, 16);
+    for (V3 p : {V3(-51.5f, -2, 4.95f), V3(-51.5f, -2, -4.95f)}) b.post(p, 1.2f, 0.06f, T_DARKWOOD);
 
     // the Lighthouse Spire (square base with a door alcove, round tower above)
     b.solid(AABB(V3(-7, 0, -7), V3(-2, 22, 7)), T_STONEBRICK);
@@ -271,7 +275,7 @@ void buildHub(Level& L, Game& g) {
     b.solid(AABB(V3(-10.8f, 0, -11.8f), V3(-9.2f, 3, -10.2f)), T_MARBLE, -1, V3(1, 1, 1), false);
     if (g.has("game.finished")) b.light(V3(-10, 3.5f, -11), 6, hexColor(0xa060ff), 1.0f);
     b.talker(V3(9.5f, 0, -8.5f), -2.2f, 19);
-    // fun forever: the Gauntlet (endless waves) and Flame Golf (endless holes)
+    // fun forever: the Gauntlet (endless waves) and the Rising Dark (endless climb)
     b.arch(V3(-31, 0, -19.5f), 3.0f, 4.2f, 1, T_STONEBRICK, false);
     L.decor.emis = 2; L.decor.color = hexColor(0xff5040);
     L.decor.cube(M4::translate(V3(-31, 5.4f, -19.5f)) * M4::scale(V3(0.15f, 0.4f, 4.4f)), T_WHITE);
@@ -283,9 +287,9 @@ void buildHub(Level& L, Game& g) {
     L.decor.cube(M4::translate(V3(31, 5.4f, -19.5f)) * M4::scale(V3(0.15f, 0.4f, 4.4f)), T_WHITE);
     L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
     b.light(V3(30, 3, -19.5f), 8, hexColor(0x80ff80), 1.0f);
-    b.exit(AABB(V3(30.6f, 0, -21), V3(31.4f, 4, -18)), LV_GOLF, 0, "ab.warp", "Flame Golf needs WARP (beat the Sunken Wharf's boss first).", "Flame Golf (endless holes)");
+    b.exit(AABB(V3(30.6f, 0, -21), V3(31.4f, 4, -18)), LV_CLIMB, 0, "ab.warp", "The Rising Dark needs WARP (beat the Sunken Wharf's boss first).", "The Rising Dark (endless climb)");
     b.spawn(V3(-28.5f, 0, -19.5f), PI / 2);    // 9: back from the Gauntlet
-    b.spawn(V3(28.5f, 0, -19.5f), -PI / 2);  // 10: back from Flame Golf
+    b.spawn(V3(28.5f, 0, -19.5f), -PI / 2);  // 10: back from the Rising Dark
     // the wardrobe mirror in Marrow's workshop (change hats)
     b.talker(V3(5.6f, 0, -25.5f), -PI / 2, 15);
     b.hint(AABB(V3(3.5f, 0, -27.5f), V3(6.4f, 3, -23.5f)), "A tall old mirror. [{INTERACT}] to try on the hats you've found.");

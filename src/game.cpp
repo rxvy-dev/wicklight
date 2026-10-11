@@ -14,12 +14,11 @@ extern int g_dmgKind;
 void collectExtra(Game& g, Pickup& p);
 bool talkExtra(Game& g, int ti);
 void fennLampLit(Game& g);
-void golfCup(Game& g);
 bool talkPostgame(Game& g, int ti);
 
 // ------------------------------------------------------------------ text
 const char* levelName(LevelId id) {
-    static const char* n[] = {"Lumen Hollow", "The Sunken Wharf", "The Clockwood", "The Ashen Vaults", "The Lighthouse Spire", "The Junkyard of Lost Machines", "The Endless Dark", "Wick's Island", "Lumen City", "The Gauntlet", "Flame Golf"};
+    static const char* n[] = {"Lumen Hollow", "The Sunken Wharf", "The Clockwood", "The Ashen Vaults", "The Lighthouse Spire", "The Junkyard of Lost Machines", "The Endless Dark", "Wick's Island", "Lumen City", "The Gauntlet", "The Rising Dark"};
     return (id >= 0 && id < LV_COUNT) ? n[id] : "?";
 }
 
@@ -132,7 +131,7 @@ void Game::writeSave() {
     }
     for (auto& l : save.voxLines) o << l << "\n";
     o << "hat " << save.hat << "\n" << "fish " << save.fishCaught << "\n" << "race " << save.raceBest << "\n";
-    o << "fun " << save.gauntletBest << " " << save.golfHole << " " << save.golfPlayed << " " << save.golfScore << " " << save.golfAces << "\n";
+    o << "fun2 " << save.gauntletBest << " " << save.climbBest << " " << save.climbRuns << "\n";
     o << "dye " << save.dye << "\n" << "stats " << save.kills << " " << save.bestCombo << " " << save.bounties << " " << save.rushBest << "\n";
     o << "bounty " << save.bountyDay << " " << save.bountyProg[0] << " " << save.bountyProg[1] << " " << save.bountyProg[2] << " " << save.bountyDone << "\n";
     for (auto& f : save.flags) o << "flag " << f << "\n";
@@ -172,7 +171,8 @@ bool Game::loadGame() {
         else if (key == "vx") s.voxLines.push_back(line);
         else if (key == "hat") { ls >> s.hat; if (s.hat < 0 || s.hat > 31) s.hat = 0; }
         else if (key == "fish") ls >> s.fishCaught;
-        else if (key == "fun") { ls >> s.gauntletBest >> s.golfHole >> s.golfPlayed >> s.golfScore >> s.golfAces; if (s.golfHole < 1) s.golfHole = 1; }
+        else if (key == "fun") ls >> s.gauntletBest;
+        else if (key == "fun2") ls >> s.gauntletBest >> s.climbBest >> s.climbRuns;
         else if (key == "dye") { ls >> s.dye; if (s.dye < 0 || s.dye > 7) s.dye = 0; }
         else if (key == "stats") ls >> s.kills >> s.bestCombo >> s.bounties >> s.rushBest;
         else if (key == "bounty") ls >> s.bountyDay >> s.bountyProg[0] >> s.bountyProg[1] >> s.bountyProg[2] >> s.bountyDone;
@@ -626,7 +626,6 @@ void Game::lightBrazier(int i, bool byBloom) {
     audio::playAt(SFX_BRAZIER, b.pos);
     burst(b.pos, hexColor(0xffa040), 24, 4, 0.1f, 3, 0.8f, -2);
     bountyEvent(5, 1);
-    if (b.gateGroup == 90) { golfCup(*this); return; }
     if (b.gateGroup == 70) { fennLampLit(*this); return; }
     if (b.gateGroup >= 0) {
         bool all = true;

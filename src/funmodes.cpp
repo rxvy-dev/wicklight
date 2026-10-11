@@ -3,8 +3,7 @@
 //                chain-reaction explosions, turbo, endless bloom, giant flame, jelly enemies, slow-mo kills
 //  THE GAUNTLET  an arena of endless waves, each one stranger than the last (swarms, moth storms, FBI raids,
 //                low gravity, everything-explodes...), with mini-bosses every 5 waves
-//  FLAME GOLF    endless generated holes on floating islands: your flame is the ball - throw, warp, repeat,
-//                and burn the brazier on the green in as few throws as you can
+//  THE RISING DARK  an endless tower to climb while the Hush's tide rises underneath you
 #include "builder.h"
 #include <cstdio>
 #include <algorithm>
@@ -266,83 +265,128 @@ static void updateGauntlet(Game& g, float dt) {
     }
 }
 
-// ------------------------------------------------------------------ Flame Golf
-void buildGolf(Level& L, Game& g) {
+// ------------------------------------------------------------------ the Rising Dark: an endless climb
+// A tower of floating platforms spiralling up into the night. The Hush's tide rises underneath, faster and faster.
+// Jump, warp to hooks, grapple, ride the lifts - how high can you get before the dark catches you?
+void buildClimb(Level& L, Game& g) {
     LB b(L);
-    int hole = std::max(1, g.save.golfHole);
-    Rng r(hash32((uint32_t)hole * 7349u + 11u));
-    char nm[64]; snprintf(nm, sizeof(nm), "Flame Golf - Hole %d", hole);
-    L.name = nm;
-    L.song = SONG_ENDING;
-    L.env.skyTop = hexColor(0x2a3a6a); L.env.skyHorizon = hexColor(0xe08a6a);
-    L.env.fogColor = hexColor(0x8a6a7a); L.env.fogDensity = 0.008f;
-    L.env.ambSky = V3(0.5f, 0.46f, 0.55f); L.env.ambGround = V3(0.22f, 0.18f, 0.2f);
-    L.env.sunDir = norm(V3(-0.6f, -0.5f, 0.4f)); L.env.sunColor = V3(0.95f, 0.7f, 0.5f);
-    L.env.stars = 0.2f; L.env.moonSize = 0;
-    L.killY = -24;
-    auto island = [&](V3 c, float hw, bool green) {
-        b.slab(c.x - hw, c.z - hw, c.x + hw, c.z + hw, c.y, green ? T_MOSS : T_GRASS, T_DIRT, 2);
-        L.decor.cone(M4::translate(c + V3(0, -4.5f, 0)) * M4::rotX(PI) * M4::scale(V3(hw * 2.1f, 5, hw * 2.1f)), T_ROCK, 7);
-    };
-    // the tee
-    island(V3(0, 0, 0), 4, false);
-    b.spawn(V3(0, 0, -1), 0);
-    L.decor.color = hexColor(0xff5050); L.decor.cylinder(M4::translate(V3(-1.2f, 0.3f, 1.5f)) * M4::scale(V3(0.3f, 0.6f, 0.3f)), T_WHITE, 6); L.decor.cylinder(M4::translate(V3(1.2f, 0.3f, 1.5f)) * M4::scale(V3(0.3f, 0.6f, 0.3f)), T_WHITE, 6);
-    L.decor.color = V3(1, 1, 1);
-    b.arch(V3(-3.5f, 0, -1.5f), 2.2f, 3.4f, 0.6f, T_MARBLE, false);
-    b.exit(AABB(V3(-4.0f, 0, -2.6f), V3(-3.6f, 3, -0.4f)), LV_HUB, 10, "", "", "Back to Lumen Hollow");
-    // the fairway: a chain of floating islands, sometimes a hook hanging in a gap
-    int n = 1 + r.irange(0, std::min(3, 1 + hole / 3));
-    V3 pos(0, 0, 0);
-    float a = 0, prevHw = 4;
-    L.route.push_back({0, V3(0, 0, 1.5f)});
-    for (int i = 0; i < n; i++) {
-        bool green = i == n - 1;
-        float dist = r.range(9.5f, 14.f);
-        a = clampf(a + r.range(-0.7f, 0.7f), -1.0f, 1.0f);
-        V3 np = pos + V3(std::sin(a) * dist, r.range(-2.6f, -0.4f), std::cos(a) * dist);  // a downhill course: flames fly straight
-        
-        float hw = green ? 4.5f : r.range(2.4f, 3.6f);
-        L.route.push_back({0, pos + norm(flatXZ(np - pos)) * (prevHw - 1.0f)});  // (the bot walks to the edge before each shot)
-        island(np, hw, green);
-        if (!green && r.f() < 0.35f) b.anchor((pos + np) * 0.5f + V3(r.range(-2, 2), 4.5f, 0));
-        if (!green && r.f() < 0.5f) { if (r.f() < 0.5f) b.tree(np + V3(hw * 0.6f, 0, hw * 0.6f), 0.7f, T_LEAVES, false); else b.mushroom(np + V3(-hw * 0.5f, 0, hw * 0.3f), 0.8f); }
-        if (!green && hole >= 4 && r.f() < 0.3f) b.enemy(E_GLOOMLING, np + V3(1, 0.2f, 1));
-        b.light(np + V3(0, 3, 0), 9, hexColor(0xffd0a0), 0.6f);
-        if (!green) L.route.push_back({1, np + V3(0, -0.3f, 0)});
-        else L.route.push_back({1, np - norm(flatXZ(np - pos)) * 0.6f + V3(0, -0.3f, 0)});  // onto the green, short of the cup
-        pos = np; prevHw = hw;
+    L.name = "The Rising Dark";
+    L.song = SONG_FINAL;
+    L.env.skyTop = hexColor(0x050318); L.env.skyHorizon = hexColor(0x2a1a4a);
+    L.env.fogColor = hexColor(0x140c28); L.env.fogDensity = 0.012f;
+    L.env.ambSky = V3(0.3f, 0.26f, 0.42f); L.env.ambGround = V3(0.12f, 0.08f, 0.16f);
+    L.env.sunColor = V3(0.4f, 0.35f, 0.6f); L.env.stars = 1.6f; L.env.moonSize = 0.1f;
+    L.killY = -1000;  // the tide is what kills you here
+    g.climbOn = false; g.climbH = 0; g.tideY = -7; g.tideSpeed = 1.1f;
+    Rng r(hash32(1234u + (uint32_t)g.save.climbRuns * 7919u));  // a new tower every run
+    // the base
+    b.slab(-5, -5, 5, 5, 0, T_MARBLE, T_STONEBRICK, 3);
+    b.spawn(V3(0, 0, -2), 0);
+    b.arch(V3(-3.6f, 0, -2.5f), 2.2f, 3.4f, 0.6f, T_MARBLE, false);
+    b.exit(AABB(V3(-4.1f, 0, -3.6f), V3(-3.7f, 3, -1.4f)), LV_HUB, 10, "", "", "Back to Lumen Hollow");
+    b.hint(AABB(V3(-5, -1, -5), V3(5, 4, 5)), "THE RISING DARK. Climb! The tide starts rising as soon as you leave this floor. Jump, warp to hooks, grapple, ride the lifts. How high can you go?");
+    // the spire everything spirals around
+    L.decor.cylinder(M4::translate(V3(0, 500, 0)) * M4::scale(V3(3, 1000, 3)), T_STONEBRICK, 12, false, 200);
+    // Platforms go round the spire at a steady radius. Each step's angle is worked out from the edge-to-edge gap we
+    // want, so every jump is makeable (Wick jumps ~2.2 high and ~4 across) and nothing ends up stacked on top.
+    V3 prev(0, 0, 0); float prevHw = 5, prevRad = 0, liftExtra = 0;
+    float ang = r.range(0, 6.28f);
+    L.route.push_back({0, V3(0, 0, 0)});
+    for (int i = 0; i < 420; i++) {
+        float y = prev.y;
+        int kind = r.f() < 0.62f ? 0 : (r.f() < 0.6f ? 1 : 2);  // 0 jump, 1 hook gap, 2 moving lift
+        if (i < 3) kind = 0;
+        float hw = r.range(1.3f, 2.1f) - std::min(0.4f, i * 0.002f);
+        float rad = r.range(7.0f, 9.5f);
+        float gap = kind == 1 ? r.range(3.5f, 5.5f) : r.range(0.8f, 2.4f + std::min(0.3f, i * 0.002f));
+        float dy = kind == 1 ? r.range(3.2f, 4.8f) : r.range(0.8f, 1.5f);
+        V3 c;
+        if (i == 0) {
+            c = V3(std::sin(ang) * (5 + hw + gap), y + dy, std::cos(ang) * (5 + hw + gap));
+            rad = 5 + hw + gap;
+        } else {
+            float d = prevHw + hw + gap + liftExtra;           // centre-to-centre distance we want
+            float cs = (prevRad * prevRad + rad * rad - d * d) / (2 * prevRad * rad);
+            ang += std::acos(clampf(cs, -1.f, 1.f));
+            c = V3(std::sin(ang) * rad, y + dy, std::cos(ang) * rad);
+            // the slabs are square, so make sure the boxes themselves don't overlap
+            for (int k = 0; k < 40 && std::max(std::fabs(c.x - prev.x), std::fabs(c.z - prev.z)) - prevHw - hw < 0.9f; k++) {
+                ang += 0.03f;
+                c = V3(std::sin(ang) * rad, y + dy, std::cos(ang) * rad);
+            }
+        }
+        prevRad = rad;
+        liftExtra = 0;
+        int tile = (i / 25) % 2 ? T_MARBLE : T_STONEBRICK;
+        if (kind == 2) {
+            // a lift that slides between this spot and a point further round
+            V3 off = norm(V3(c.z, 0, -c.x)) * 3.0f;  // slides forward round the tower; the next platform waits beyond it
+            liftExtra = 3.0f;
+            b.mover(AABB(c + V3(-hw, -0.4f, -hw), c + V3(hw, 0, hw)), V3(0, 0, 0), off, 3.6f, r.f(), T_BRASS, T_METAL);
+        } else b.slab(c.x - hw, c.z - hw, c.x + hw, c.z + hw, c.y, tile, T_STONEBRICK, 0.6f);
+        if (kind == 1) b.anchor(c + V3(0, 2.2f, 0));
+        if (r.f() < 0.22f) { Pickup p; p.type = PK_EMBER; p.pos = c + V3(0, 1.0f, 0); p.value = 3; p.life = 1e9f; L.pickups.push_back(p); }
+        if (i % 6 == 0) b.light(c + V3(0, 2.5f, 0), 8, i % 12 ? hexColor(0xffb060) : hexColor(0xa070ff), 0.9f);
+        if (i % 25 == 24) {  // a height marker every 25 platforms
+            L.decor.emis = 1.5f; L.decor.color = hexColor(0x80e0ff);
+            L.decor.cube(M4::translate(V3(0, c.y, 0)) * M4::scale(V3(6.4f, 0.3f, 6.4f)), T_WHITE);
+            L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
+        }
+        L.route.push_back({kind == 1 ? 1 : kind == 2 ? 9 : 0, c});  // op 9 = a lift (it moves, the bot skips those)
+        prev = c; prevHw = hw;
     }
-    // the green: a brazier is the cup, with a flag
-    V3 cup = pos + V3(std::sin(a), 0, std::cos(a)) * 2.6f;  // the cup sits at the far side of the green
-    b.brazier(cup, 90);
-    L.decor.cylinder(M4::translate(cup + V3(1.6f, 2.0f, 0)) * M4::scale(V3(0.08f, 4, 0.08f)), T_WHITE, 6);
-    L.decor.color = hexColor(0xff3040); L.decor.cube(M4::translate(cup + V3(2.2f, 3.6f, 0)) * M4::scale(V3(1.1f, 0.7f, 0.06f)), T_CLOTH);
-    L.decor.color = V3(1, 1, 1);
-    L.route.push_back({2, cup + V3(0, 1.35f, 0)});
-    g.golfPar = n + 1;
-    g.golfStrokes = 0; g.golfDoneT = 0;
-    char hint[200];
-    snprintf(hint, sizeof(hint), "HOLE %d - PAR %d.  Throw your flame, WARP to where it lands, and burn the brazier on the green in as few throws as you can.", hole, g.golfPar);
-    b.hint(AABB(V3(-4, -1, -4), V3(4, 4, 4)), hint);
-    b.emitter(AABB(V3(-30, -6, -10), V3(30, 10, 70)), 0, 8);
+    b.emitter(AABB(V3(-14, 0, -14), V3(14, 60, 14)), 4, 10);
 }
 
-void golfCup(Game& g) {
-    if (g.golfDoneT > 0) return;
-    int s = g.golfStrokes, par = g.golfPar, d = s - par;
-    const char* name = s == 1 ? "HOLE IN ONE!" : d <= -3 ? "ALBATROSS!" : d == -2 ? "EAGLE!" : d == -1 ? "BIRDIE!" : d == 0 ? "PAR" : d == 1 ? "BOGEY" : d == 2 ? "DOUBLE BOGEY" : "...SINK IT NEXT TIME";
-    int emb = std::max(5, 20 + (par - s) * 15 + (s == 1 ? 100 : 0));
-    g.save.golfPlayed++; g.save.golfScore += d;
-    if (s == 1) g.save.golfAces++;
-    char sub[96]; snprintf(sub, sizeof(sub), "%d throws (par %d)   +%d embers", s, par, emb);
-    g.showToast(name, sub);
-    g.save.embers += emb;
-    fireworks(g, g.pl.pos, d < 0 ? 6 : 2);
-    if (d < 0) confetti(g, g.pl.pos + V3(0, 1.5f, 0), 80);
-    audio::play(SFX_HEART, 0.8f, d < 0 ? 1.3f : 1.0f);
-    g.golfDoneT = 3.2f;
+static void climbFinish(Game& g, int h) {
+    g.save.climbRuns++;
+    bool best = h > g.save.climbBest;
+    if (best) g.save.climbBest = h;
+    g.save.embers += h / 2;
     g.writeSave();
+}
+
+static void updateClimb(Game& g, float dt) {
+    if (g.climbLast >= 0) {
+        g.showToast("THE DARK GOT YOU AT " + std::to_string(g.climbLast) + "m", "best " + std::to_string(g.save.climbBest) + "m   (+" + std::to_string(g.climbLast / 2) + " embers)   - climb again!");
+        g.climbLast = -1;
+    }
+    if (g.pl.dead) return;
+    if (!g.climbOn) {
+        if (g.pl.pos.y > 0.6f || len(flatXZ(g.pl.pos)) > 5.5f) { g.climbOn = true; audio::play(SFX_ROAR, 0.7f, 0.6f); g.statusMsg = "THE DARK IS RISING! CLIMB!"; g.statusT = 2.5f; }
+        return;
+    }
+    g.climbH = std::max(g.climbH, (int)g.pl.pos.y);
+    // the tide speeds up over time, and never falls too far behind
+    g.tideSpeed = std::min(3.2f, g.tideSpeed + dt * 0.012f);
+    g.tideY += g.tideSpeed * dt;
+    if (g.tideY < g.pl.pos.y - 22) g.tideY = g.pl.pos.y - 22;
+    if (g.pl.pos.y < g.tideY + 0.2f) {
+        climbFinish(g, g.climbH);
+        g.burst(g.pl.pos + V3(0, 1, 0), hexColor(0x6a3aaa), 50, 6, 0.2f, 2, 1.2f, 0);
+        g.killPlayer();
+    }
+    // milestones
+    static int lastMile = 0;
+    int mile = g.climbH / 50;
+    if (mile > lastMile && mile > 0) { g.showToast(std::to_string(mile * 50) + " METRES!", g.climbH > g.save.climbBest ? "a new record!" : "keep going!"); audio::play(SFX_BELL, 0.7f, 1.4f); }
+    lastMile = mile;
+    if (g.fxTick(0.08f) && !g.headless && g.R) {
+        Particle q; q.pos = V3(frng.range(-14, 14), g.tideY + 0.3f, frng.range(-14, 14)) ; q.vel = V3(0, frng.range(1, 3), 0);
+        q.color = hexColor(0x8050d0); q.alpha = 0.8f; q.size = 0.4f; q.grow = 0.6f; q.life = q.maxLife = 1.4f; q.kind = 2;
+        g.R->spawn(q);
+    }
+}
+
+// the tide, drawn as a slab of living shadow
+void drawFunWorld(Game& g, Renderer* R) {
+    if (g.lv.id != LV_CLIMB || R->shadowPass) return;
+    float y = g.climbOn || g.pl.dead ? g.tideY : -7;
+    R->drawPart(PM_CUBE, M4::translate(V3(0, y - 15, 0)) * M4::scale(V3(90, 30, 90)), T_SHADOW, V3(1, 1, 1), 0.2f, 0, 0.92f);
+    for (int k = 0; k < 24; k++) {
+        float a = k * TAU / 24 + g.time * 0.2f;
+        R->drawPart(PM_SPHERE, M4::translate(V3(std::sin(a) * 12, y + 0.2f + 0.3f * std::sin(g.time * 2 + k), std::cos(a) * 12)) * M4::scale(V3(3, 1, 3)), T_EYE, V3(1, 1, 1), 0.6f, 0, 0.6f);
+    }
 }
 
 // ------------------------------------------------------------------ per step
@@ -363,10 +407,7 @@ void Game::updateFunModes(float dt) {
         }
     }
     if (lv.id == LV_ARENA) updateGauntlet(*this, dt);
-    if (lv.id == LV_GOLF && golfDoneT > 0) {
-        golfDoneT -= dt;
-        if (golfDoneT <= 0) { save.golfHole++; requestTransition(LV_GOLF, 0); }
-    }
+    if (lv.id == LV_CLIMB) updateClimb(*this, dt);
     // party mode: the music gets a horn now and then
     if (toy(3) && fxTick(6.f) && !enemies.empty()) audio::play(SFX_BELL, 0.25f, 2.2f);
 }
@@ -380,16 +421,18 @@ void drawFunHUD(Game& g) {
         int alive = 0; for (auto& e : g.enemies) if (e.alive) alive++;
         char b[128];
         snprintf(b, sizeof(b), "WAVE %d%s%s   enemies left %d   best %d", g.gWave, g.gMod >= 0 ? "   " : "", g.gMod >= 0 ? MODS[g.gMod] : "", alive + g.gQueue, g.save.gauntletBest);
-        R->uiTextCentered(W / 2, 18 * s, b, s * 1.3f, g.gState == 2 ? C4(0x80ff90) : C4(0xff9060));
-        if (g.gState == 2) R->uiTextCentered(W / 2, 30 * s, "next wave in " + std::to_string(std::max(0, (int)std::ceil(5 - g.gT))), s, COL_DIM);
+        R->uiTextCentered(W / 2, 34 * s, b, s * 1.3f, g.gState == 2 ? C4(0x80ff90) : C4(0xff9060));
+        if (g.gState == 2) R->uiTextCentered(W / 2, 46 * s, "next wave in " + std::to_string(std::max(0, (int)std::ceil(5 - g.gT))), s, COL_DIM);
     }
-    if (g.lv.id == LV_GOLF) {
+    if (g.lv.id == LV_CLIMB) {
         char b[128];
-        snprintf(b, sizeof(b), "HOLE %d   PAR %d   THROWS %d", g.save.golfHole, g.golfPar, g.golfStrokes);
-        R->uiTextCentered(W / 2, 18 * s, b, s * 1.4f, C4(0xffe0a0));
-        char t[128];
-        snprintf(t, sizeof(t), "holes played %d   total %+d   holes-in-one %d", g.save.golfPlayed, g.save.golfScore, g.save.golfAces);
-        R->uiTextCentered(W / 2, 31 * s, t, s, COL_DIM);
+        snprintf(b, sizeof(b), "HEIGHT %dm   BEST %dm", g.climbOn ? g.climbH : 0, g.save.climbBest);
+        R->uiTextCentered(W / 2, 34 * s, b, s * 1.4f, C4(0xd0c0ff));
+        if (g.climbOn) {
+            float gap = g.pl.pos.y - g.tideY;
+            char t[64]; snprintf(t, sizeof(t), "the dark is %.0fm below you", std::max(0.f, gap));
+            R->uiTextCentered(W / 2, 47 * s, t, s, gap < 6 ? (std::fmod(g.time * 4, 1.f) < 0.5f ? C4(0xff4060) : C4(0xb080ff)) : COL_DIM);
+        }
     }
     // a little reminder of what's switched on
     int on = 0; for (int i = 0; i < NUM_TOYS; i++) if (g.toy(i)) on++;

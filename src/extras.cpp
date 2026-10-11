@@ -207,7 +207,7 @@ bool talkExtra(Game& g, int ti) {
 // ------------------------------------------------------------------ fishing
 bool Game::updateFishing(float dt, const InputState& in) {
     if (fishState == 0) return false;
-    if (lv.id != LV_WHARF || pl.dead || fishSpot < 0 || fishSpot >= (int)lv.talkers.size()) { fishState = 0; return false; }
+    if (lv.waterY <= -999 || pl.dead || fishSpot < 0 || fishSpot >= (int)lv.talkers.size()) { fishState = 0; return false; }
     bool press = in.pressed[A_INTERACT] || in.pressed[A_THROW];
     bool cancel = in.pressed[A_JUMP] || in.pressed[A_DASH];
     fishT += dt;
@@ -215,7 +215,9 @@ bool Game::updateFishing(float dt, const InputState& in) {
     bob.y = lv.waterY;
     switch (fishState) {
         case 1:
-            if (cancel || press) { fishState = 0; statusMsg = "You reel your line back in."; statusT = 1.5f; return false; }
+            // pressing E while you wait does nothing (it used to reel the line straight back in) - jump or dash to stop
+            if (cancel) { fishState = 0; statusMsg = "You reel your line back in."; statusT = 1.5f; return false; }
+            if (press && fishT > 0.3f) { statusMsg = "Not yet! Wait for the SPLASH... (jump to stop fishing)"; statusT = 1.5f; }
             if (fishT >= fishWait) {
                 fishState = 2; fishT = 0;
                 audio::playAt(SFX_SPLASH, bob, 1, 1.4f);
@@ -233,7 +235,7 @@ bool Game::updateFishing(float dt, const InputState& in) {
                 fishZoneW = FISH_ZONE[fishKind];
                 fishZone = 0.2f + 0.6f * hashf(save.fishCaught, 3, 11);
                 audio::play(SFX_TICK, 1, 0.8f);
-            } else if (cancel || fishT > 0.9f) { fishState = 0; statusMsg = "It got away..."; statusT = 1.5f; audio::play(SFX_MENU_BACK, 0.6f); return false; }
+            } else if (cancel || fishT > 1.5f) { fishState = 0; statusMsg = "It got away..."; statusT = 1.5f; audio::play(SFX_MENU_BACK, 0.6f); return false; }
             break;
         case 3:
             fishNeedle = 0.5f - 0.5f * std::cos(fishT * FISH_SPEED[fishKind]);

@@ -628,36 +628,52 @@ int runFeatureTest(Game& g, const std::string& which) {
             g.dialog.clear(); if (g.screen != SC_PLAY) g.screen = SC_PLAY;
         }
         check("the Gauntlet: survive 6 waves", g.save.gauntletBest >= 6, "best wave " + std::to_string(g.save.gauntletBest) + " in " + std::to_string((int)t) + "s");
-        // 3. Flame Golf: play 4 generated holes
-        g.save.golfHole = 1;
-        int holes = 0;
-        int NH = getenv("WL_GOLF_N") ? atoi(getenv("WL_GOLF_N")) : 4;
-        for (int h = 0; h < NH; h++) {
-            g.enterLevel(LV_GOLF, 0); g.dialog.clear();
-            Bot gb(g);
-            gb.airOk = false;
-            for (auto& st : g.lv.route) {
-                if (st.op == 0) gb.cmds.push_back(G(st.p.x, st.p.y, st.p.z));
-                if (st.op == 1) { gb.cmds.push_back(TW(st.p.x, st.p.y, st.p.z)); gb.cmds.push_back(W(0.3f)); }
-                if (st.op == 2) { gb.cmds.push_back(T(st.p.x, st.p.y, st.p.z)); }
+        // 3. the Rising Dark: an endless climb with a rising tide
+        g.enterLevel(LV_CLIMB, 0); g.dialog.clear();
+        {
+            auto& R = g.lv.route;
+            // every step must be makeable: small jumps, or a hook within warp range
+            int bad = 0;
+            for (size_t i = 1; i < R.size(); i++) {
+                float dy = R[i].p.y - R[i - 1].p.y, dxz = lenXZ(R[i].p - R[i - 1].p);
+                bool hook = R[i].op == 1;
+                if (dy <= 0 || dy > (hook ? 5.0f : 1.6f) || dxz > (hook ? 13.5f : 10.5f)) { bad++; printf("   bad gap %zu: op %d dy %.2f dxz %.2f\n", i, R[i].op, dy, dxz); }
             }
-            gb.cmds.push_back(W(1));
-            int hole = g.save.golfHole, played = g.save.golfPlayed, par = g.golfPar;
+            check("Rising Dark: 420 platforms, every gap makeable", R.size() == 421 && bad == 0, std::to_string(bad) + " bad gaps, top at " + std::to_string((int)R.back().p.y) + "m");
+            // the bot climbs for real until the first moving lift
+            Bot cb(g); cb.airOk = false;
+            size_t lim = 1;
+            while (lim < R.size() && R[lim].op != 9 && lim < 14) lim++;
+            for (size_t i = 1; i < lim; i++) {
+                if (R[i].op == 0) cb.cmds.push_back(G(R[i].p.x, R[i].p.y, R[i].p.z));
+                if (R[i].op == 1) { cb.cmds.push_back(TW(R[i].p.x, R[i].p.y + 2.2f, R[i].p.z)); cb.cmds.push_back(W(0.3f)); cb.cmds.push_back(G(R[i].p.x, R[i].p.y, R[i].p.z)); }
+            }
             float tt = 0;
-            if (getenv("WL_GOLF")) for (auto& st : g.lv.route) printf("   route op %d (%.1f %.1f %.1f)\n", st.op, st.p.x, st.p.y, st.p.z);
-            while (tt < 60 && g.save.golfPlayed == played) {
-                if (!gb.step() && g.dialog.empty()) break;
-                g.update(SIM_DT, gb.in); tt += SIM_DT; g.dialog.clear();
-                if (getenv("WL_GOLF") && std::fmod(tt, 0.5f) < SIM_DT) printf("   t=%.1f pc=%zu pos=(%.1f %.1f %.1f) flame=%d fpos=(%.1f %.1f %.1f) fails=%d\n", tt, gb.pc, g.pl.pos.x, g.pl.pos.y, g.pl.pos.z, g.flame.st, g.flame.pos.x, g.flame.pos.y, g.flame.pos.z, gb.failures);
+            if (getenv("WL_CLIMB")) for (size_t i = 0; i < lim; i++) printf("   route %zu op %d (%.1f %.1f %.1f)\n", i, R[i].op, R[i].p.x, R[i].p.y, R[i].p.z);
+            while (tt < 60 && cb.step() && !g.pl.dead) {
+                g.update(SIM_DT, cb.in); tt += SIM_DT; g.dialog.clear();
+                if (getenv("WL_CLIMB") && std::fmod(tt, 0.25f) < SIM_DT) printf("   t=%.2f pc=%zu pos=(%.1f %.1f %.1f) gnd=%d fails=%d\n", tt, cb.pc, g.pl.pos.x, g.pl.pos.y, g.pl.pos.z, (int)g.pl.grounded, cb.failures);
             }
-            for (int k = 0; k < 120 * 5 && g.save.golfHole == hole; k++) g.update(SIM_DT, InputState());
-            bool ok = g.save.golfPlayed == played + 1;
-            printf("[bot] fun:   golf hole %d (par %d): %s in %d throws\n", hole, par, ok ? "sunk" : "NOT SUNK", g.golfStrokes);
-            holes += ok;
+            for (int k = 0; k < 60; k++) g.update(SIM_DT, InputState());
+            float want = R[lim - 1].p.y;
+            check("Rising Dark: the bot climbs the first platforms", g.climbOn && g.pl.pos.y > want - 0.5f && !g.pl.dead, "reached " + std::to_string(g.pl.pos.y) + " of " + std::to_string(want) + " (" + std::to_string(lim - 1) + " platforms)");
+            // then hop up the rest of the tower: the height counter and the tide follow you
+            for (size_t i = lim; i < 120; i++) {
+                if (R[i].op == 9) continue;
+                g.pl.pos = R[i].p + V3(0, 0.05f, 0); g.pl.vel = V3(0, 0, 0);
+                for (int k = 0; k < 30; k++) g.update(SIM_DT, InputState());
+                g.dialog.clear();
+            }
+            int h = g.climbH;
+            check("Rising Dark: height counts and the tide follows", h > 150 && g.tideY > g.pl.pos.y - 23 && g.tideY < g.pl.pos.y, "height " + std::to_string(h) + "m, tide " + std::to_string((int)(g.pl.pos.y - g.tideY)) + "m below");
+            // stand still and let the dark catch up
+            int runs = g.save.climbRuns, emb = g.save.embers;
+            for (int k = 0; k < 120 * 30 && g.save.climbRuns == runs; k++) g.update(SIM_DT, InputState());
+            for (int k = 0; k < 120 * 4; k++) { g.update(SIM_DT, InputState()); g.dialog.clear(); }
+            check("Rising Dark: the tide ends the run and saves the record", g.save.climbRuns == runs + 1 && g.save.climbBest == h && g.save.embers > emb && g.lv.id == LV_CLIMB && !g.climbOn && g.pl.pos.y < 1, "best " + std::to_string(g.save.climbBest) + "m");
         }
-        check("Flame Golf: every hole generated and sunk", holes == NH && g.save.golfHole == NH + 1);
         g.writeSave(); SaveData keep = g.save; g.save = SaveData(); g.loadGame();
-        check("save/load keeps Gauntlet and golf records", g.save.gauntletBest == keep.gauntletBest && g.save.golfPlayed == keep.golfPlayed && g.save.golfHole == keep.golfHole);
+        check("save/load keeps Gauntlet and climb records", g.save.gauntletBest == keep.gauntletBest && g.save.climbBest == keep.climbBest && g.save.climbRuns == keep.climbRuns);
         printf("[bot] fun: %s (%d failures)\n", fails ? "FAIL" : "PASS", fails);
         return fails ? 2 : 0;
     }
@@ -790,7 +806,33 @@ int runFeatureTest(Game& g, const std::string& which) {
         }
         talkTo(4);
         check("fishing: Golden Carp caught, Fisher's Hat received", quest && g.has("fish.3") && g.has("hat.3"), std::to_string(g.save.fishCaught - caught0) + " fish caught");
+        // 5b. fishing on the Hollow's west docks, with real button presses (pressing E while waiting must not reel in)
+        {
+            g.enterLevel(LV_HUB, 1); g.dialog.clear();
+            int spot = -1; for (int i = 0; i < (int)g.lv.talkers.size(); i++) if (g.lv.talkers[i].who == 16) { spot = i; break; }
+            int c0 = g.save.fishCaught;
+            bool held = true;
+            for (int tries = 0; tries < 6 && g.save.fishCaught == c0 && spot >= 0; tries++) {
+                g.pl.pos = g.lv.talkers[spot].pos + V3(0.6f, 0, -0.8f); g.pl.vel = V3(); g.pl.safePos = g.pl.pos;
+                for (int k = 0; k < 20; k++) g.update(SIM_DT, InputState());
+                { InputState a; a.pressed[A_INTERACT] = true; a.down[A_INTERACT] = true; g.update(SIM_DT, a); }
+                for (int k = 0; k < 60; k++) g.update(SIM_DT, InputState());
+                { InputState a; a.pressed[A_INTERACT] = true; g.update(SIM_DT, a); }  // impatient press while waiting
+                if (g.fishState != 1) held = false;
+                for (int k = 0; k < 120 * 6 && g.fishState == 1; k++) g.update(SIM_DT, InputState());
+                for (int k = 0; k < 40; k++) g.update(SIM_DT, InputState());   // a slow-ish reaction (1/3 s)
+                { InputState a; a.pressed[A_INTERACT] = true; g.update(SIM_DT, a); }
+                for (int k = 0; k < 120 * 6 && g.fishState == 3; k++) {
+                    InputState a;
+                    if (std::fabs(g.fishNeedle - g.fishZone) < g.fishZoneW * 0.3f) a.pressed[A_INTERACT] = true;
+                    g.update(SIM_DT, a);
+                }
+                g.dialog.clear();
+            }
+            check("fishing on the Hollow docks with real key presses", spot >= 0 && held && g.save.fishCaught > c0, held ? "" : "an early press reeled the line in");
+        }
         // 6. secret hats: pick up the Top Hat on the tiny island
+        g.enterLevel(LV_WHARF, 0); g.dialog.clear();
         g.pl.pos = V3(-14, 0.3f, 78.5f); g.pl.vel = V3();
         for (int k = 0; k < 60; k++) g.update(SIM_DT, InputState());
         g.dialog.clear();

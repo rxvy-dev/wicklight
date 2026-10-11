@@ -125,6 +125,7 @@ void Game::killPlayer() {
     if (pl.dead) return;
     pl.dead = true; pl.deadT = 0; pl.hp = 0;
     if (lv.id == LV_ARENA && gWave > 0) gLast = gWave;
+    if (lv.id == LV_CLIMB && climbOn) { climbLast = climbH; climbOn = false; }
     save.deaths++;
     audio::play(SFX_DEATH);
     flame.st = F_HELD;
@@ -252,13 +253,6 @@ void Game::updatePlayer(float dt, const InputState& in) {
 
     // falling into water / abyss
     bool inWater = lv.waterY > -999 && p.pos.y < lv.waterY - 0.5f && lv.waterArea.contains(V3(p.pos.x, lv.waterY, p.pos.z));
-    if (lv.id == LV_GOLF && p.pos.y < lv.killY) {  // Flame Golf: out of bounds costs a stroke, not a candle
-        golfStrokes++;
-        statusMsg = "Out of bounds! +1 throw"; statusT = 2;
-        p.pos = p.safePos; p.vel = V3(0, 0, 0); flame.st = F_HELD; respawnFade = 0.5f;
-        audio::play(SFX_SPLASH, 0.6f, 1.5f);
-        return;
-    }
     if (inWater || p.pos.y < lv.killY) {
         if (inWater) { audio::play(SFX_SPLASH); burst(V3(p.pos.x, lv.waterY, p.pos.z), hexColor(0x9ad8e8), 20, 6, 0.1f, 0, 0.7f, 12); }
         bool wasInv = p.invuln > 0;
@@ -287,7 +281,6 @@ void Game::throwFlame(bool charged) {
     computeAim();
     if (!has("tut.throw")) setFlag("tut.throw");
     flame.st = F_FLYING;
-    if (lv.id == LV_GOLF && golfDoneT <= 0) golfStrokes++;
     flame.charged = charged;
     flame.pos = head + aimDir * 0.3f;
     flame.prevPos = head;
