@@ -2,6 +2,15 @@
 
 *Your head is the last flame in the world. Throw it.*
 
+![Wicklight gameplay](docs/preview.gif)
+
+**[Download the AppImage](https://github.com/rxvy-dev/wicklight/raw/main/download/Wicklight-x86_64.AppImage)** (free, x86_64 Linux) · or build it: `git clone https://github.com/rxvy-dev/wicklight && cd wicklight && ./build.sh run`
+
+| | |
+|---|---|
+| ![Fighting the Hush](docs/shot-boss.jpg) | ![Throwing the flame at the Drowned Bellwether](docs/shot-throw.jpg) |
+| ![Building a house on Wick's Island](docs/shot-island.jpg) | ![A crystal cave on Wick's Island](docs/shot-cave.jpg) |
+
 A native Linux 3D pixel-art action-adventure written in C++17 with SDL2 and OpenGL 3.3. No browser, no Electron, no engine runtime, and no asset files: every texture, model, sound effect and music track is generated in code.
 
 ## The game
