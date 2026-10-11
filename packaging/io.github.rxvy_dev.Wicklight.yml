@@ -1,0 +1,26 @@
+# Flatpak manifest.  Build & install locally with:
+#   flatpak install flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
+#   flatpak-builder --user --install --force-clean build-flatpak packaging/io.github.rxvy_dev.Wicklight.yml
+#   flatpak run io.github.rxvy_dev.Wicklight
+app-id: io.github.rxvy_dev.Wicklight
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: wicklight
+finish-args:
+  - --share=ipc
+  - --socket=x11
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --device=all
+modules:
+  - name: wicklight
+    buildsystem: cmake-ninja
+    config-opts: [-DCMAKE_BUILD_TYPE=Release]
+    post-install:
+      - mv /app/share/applications/wicklight.desktop /app/share/applications/io.github.rxvy_dev.Wicklight.desktop
+      - sed -i 's/^Icon=wicklight/Icon=io.github.rxvy_dev.Wicklight/' /app/share/applications/io.github.rxvy_dev.Wicklight.desktop
+      - mv /app/share/icons/hicolor/256x256/apps/wicklight.png /app/share/icons/hicolor/256x256/apps/io.github.rxvy_dev.Wicklight.png
+    sources:
+      - type: dir
+        path: ..

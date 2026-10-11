@@ -1,0 +1,6 @@
+build/
+dist/
+shots/
+*.ppm
+build-wicklight
+.tools/

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Wicklight
+GenericName=3D Pixel Action-Adventure
+Comment=Your head is the last flame in the world. Throw it.
+Exec=wicklight
+Icon=wicklight
+Terminal=false
+Categories=Game;ActionGame;AdventureGame;
+Keywords=game;pixel;3d;adventure;
