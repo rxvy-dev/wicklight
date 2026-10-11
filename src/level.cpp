@@ -493,6 +493,8 @@ void buildSpire(Level& L, Game& g);
 void buildJunk(Level& L, Game& g);
 void buildEndless(Level& L, Game& g);
 void buildHome(Level& L, Game& g);
+void buildCity(Level& L, Game& g);
+void applyExtraFlags(Game& g);
 
 void Game::buildLevel(LevelId id) {
     if (!headless) {
@@ -512,6 +514,7 @@ void Game::buildLevel(LevelId id) {
         case LV_JUNK: buildJunk(lv, *this); break;
         case LV_ENDLESS: buildEndless(lv, *this); break;
         case LV_HOME: buildHome(lv, *this); break;
+        case LV_CITY: buildCity(lv, *this); break;
         default: break;
     }
     gridBuild();
@@ -567,6 +570,7 @@ void Game::applyFlagsToLevel() {
         for (auto& gl : lv.gateLinks)
             if (gl.group == b.gateGroup && !gl.flag.empty() && has(gl.flag)) { b.lit = true; b.timed = 0; }
     }
+    applyExtraFlags(*this);
 }
 
 // ================================================================== wards

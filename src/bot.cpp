@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <algorithm>
 
-enum Op { BUYBOT, GOTO, THROW, CHARGE, RECALL, WARP, BLOOM, WAIT, FIGHT, BOSS, TALK, EXPECT, EXPECT_LEVEL, WAITLIFT_DOWN, WAITLIFT_UP, NOTE };
+enum Op { BUYBOT, GOTO, THROW, CHARGE, RECALL, WARP, BLOOM, WAIT, FIGHT, BOSS, TALK, EXPECT, EXPECT_LEVEL, WAITLIFT_DOWN, WAITLIFT_UP, NOTE, HACK, HOLD };
 struct Cmd { Op op; V3 p; float t; std::string s; };
 
 static Cmd G(float x, float y, float z) { return {GOTO, V3(x, y, z), 0, ""}; }
@@ -25,6 +25,8 @@ static Cmd E(const char* f) { return {EXPECT, V3(), 0, f}; }
 static Cmd EL(int lv) { return {EXPECT_LEVEL, V3(), (float)lv, ""}; }
 static Cmd N(const char* s) { return {NOTE, V3(), 0, s}; }
 static Cmd BUY(int i) { return {BUYBOT, V3(), (float)i, ""}; }
+static Cmd HACKP(int i) { return {HACK, V3(), (float)i, ""}; }
+static Cmd HOLDP() { return {HOLD, V3(), 0, ""}; }
 
 struct Bot {
     Game& g;
@@ -225,6 +227,41 @@ struct Bot {
                 timeout = 90;
             } break;
             case BOSS: done = bossStep(); timeout = 400; break;
+            case HACK: {
+                // watch the sequence, then burn the terminals in order
+                int pi = (int)c.t;
+                if (pi >= (int)g.lv.puzzles.size()) { done = true; break; }
+                HackPuzzle& P = g.lv.puzzles[pi];
+                if (P.state == 3) { if (g.flame.st == F_HELD) done = true; else if (g.flame.st == F_HOVER) press(A_THROW); break; }
+                Enemy* e = nearestEnemy(9);
+                if (e && P.state != 2) { attack(e->pos + V3(0, e->height * 0.5f, 0)); break; }
+                if (P.state == 0) { V3 c2 = P.zone.center(); walk(V3(c2.x, P.zone.lo.y + 1, c2.z), 1.5f); break; }
+                if (P.state != 2) { if (g.flame.st == F_HOVER) press(A_THROW); break; }
+                if (g.flame.st == F_HOVER) { if (t > 0.05f) press(A_THROW); break; }
+                if (g.flame.st != F_HELD) break;
+                int slot = P.seq[P.progress];
+                for (auto& T : g.lv.terminals) if (T.puzzle == pi && T.slot == slot) {
+                    V3 tp = T.pos + V3(std::sin(T.yaw), 0, std::cos(T.yaw)) * 0.2f;
+                    aim(tp); face(tp - g.pl.pos);
+                    cycT += SIM_DT;
+                    if (cycT > 0.15f) { press(A_THROW); cycT = 0; }
+                }
+                timeout = 90;
+            } break;
+            case HOLD: {
+                // the city helipad: fight whatever comes until the chopper arrives
+                const Holdout& H = g.lv.holdout;
+                if (H.done) { if (g.flame.st == F_HOVER) press(A_THROW); done = g.flame.st == F_HELD && g.dialog.empty(); break; }
+                if (!H.active) { walk(H.pad, 1.5f); break; }
+                Enemy* e = nearestEnemy(40);
+                if (e) {
+                    attack(e->pos + V3(0, e->height * 0.5f, 0), false, 2.f);
+                    float d = distXZ(e->pos, g.pl.pos);
+                    if (d < 4) in.moveY = -1; else if (d > 12) in.moveY = 1;
+                } else { if (g.flame.st == F_HOVER) press(A_THROW); walk(H.pad, 2.f); }
+                if (g.ability("firewall") && g.fwCd <= 0 && e && distXZ(e->pos, g.pl.pos) < 6) press(A_FIREWALL);
+                timeout = 120;
+            } break;
         }
         if (t > timeout && !done) {
             printf("[bot] FAIL: timeout on command %zu (op %d) in section '%s' at pos (%.1f %.1f %.1f) level %d\n", pc, c.op, section.c_str(), g.pl.pos.x, g.pl.pos.y, g.pl.pos.z, g.lv.id);
@@ -261,6 +298,11 @@ struct Bot {
             } break;
             case B_WARDEN: {
                 // burn the servers, then the hacker while his firewall is down
+                {
+                    Enemy* e = nearestEnemy(5.5f);
+                    bool down = false; for (auto& w : b.wps) if (w.id == 10 && w.vulnerable) down = true;
+                    if (e && !down) { attack(e->pos + V3(0, e->height * 0.5f, 0), false, 1.5f); face(g.pl.pos - e->pos); in.moveY = 1; break; }
+                }
                 const WeakPoint* target = nullptr;
                 for (auto& w : b.wps) if (w.id == 10 && w.vulnerable) target = &w;
                 if (!target) { float bd = 1e9f; for (auto& w : b.wps) if (w.id < 3) { float d = len(w.pos - g.pl.pos); if (d < bd) { bd = d; target = &w; } } }
@@ -357,7 +399,7 @@ static std::vector<Cmd> campaign() {
          N("CLOCK: great tree"), TW(6.5f, 10.3f, 107), TW(6.5f, 13.3f, 117), G(8.3f, 12, 119.3f), E("candle.4"), G(6.5f, 12, 117),
          TW(-6.5f, 16.3f, 117), TW(-6.5f, 19.3f, 107), G(-11.5f, 18, 106), G(-11.5f, 18, 133), G(-11.5f, 18, 138), G(0, 18, 146),
          N("CLOCK: gearwork ambush"), F(30), E("clock.arena"), G(12, 18, 163.3f), E("candle.5"), G(0, 18, 163), G(0, 18, 172),
-         N("CLOCK: timed pillars"), T(-9, 23.35f, 180), R_(), T(9, 23.35f, 180), W(0.3f), E("clock.g2"), R_(), G(0, 18, 191),
+         N("CLOCK: hacked terminals"), G(0, 18, 172), HACKP(0), E("clock.g2"), G(0, 18, 191),
          G(0, 18, 201), N("CLOCK: boss - GL1TCH the hacker"), BOSSF(), E("boss.1"), G(0, 18, 218), W(0.5f), E("ab.bloom"),
          G(4, 18, 226), G(4, 18, 234), G(0, 18, 236), G(0, 18, 240), EL(LV_HUB)});
     // ---------------- hub -> vaults (bloom the wax seal)
@@ -400,8 +442,241 @@ bool scBotStep(void* p, InputState& in, std::string& section) {
     return ok || !b->g.dialog.empty();
 }
 
+// ---- shared runner for the feature tests below
+static int runRoute(Game& g, Bot& bot, float maxT, bool verbose = false) {
+    float t = 0;
+    while (t < maxT) {
+        if (!bot.step() && g.dialog.empty()) break;
+        bot.total += SIM_DT;
+        g.update(SIM_DT, bot.in); t += SIM_DT;
+        if (g.screen != SC_PLAY && g.screen != SC_ENDING) g.screen = SC_PLAY;
+        if (verbose && std::fmod(t, 1.f) < SIM_DT) printf("   t=%.0f pc=%zu pos=(%.1f %.1f %.1f) flame=%d\n", t, bot.pc, g.pl.pos.x, g.pl.pos.y, g.pl.pos.z, g.flame.st);
+    }
+    return bot.failures;
+}
+
+static void freshFeatureSave(Game& g) {
+    g.botActive = true; g.newGame(); InputState sk; sk.mBack = true; g.frame(0.016f, sk, 0, 0);
+    g.dialog.clear();
+    for (const char* f : {"talk.marrow0", "talk.fbi", "tut.done", "ab.warp", "ab.bloom", "ab.sunflare", "ab.overclock", "heart.0", "heart.1", "boss.0", "boss.1", "npc.3", "npc.4", "npc.8"}) g.setFlag(f);
+}
+
+int runFeatureTest(Game& g, const std::string& which) {
+    if (which == "city") {
+        // Lumen City: from the Hollow's east bridge to the helipad rescue and back
+        freshFeatureSave(g);
+        g.godMode = getenv("WICKLIGHT_MORTAL") == nullptr;
+        g.enterLevel(LV_HUB, 3);
+        g.dialog.clear();
+        Bot bot(g);
+        bot.cmds = {N("CITY: east bridge"), G(42, 0, 6), G(44, 0, 12), G(55, 0, 12), EL(LV_CITY),
+                    N("CITY: alley"), G(0, 0, 8), F(14), G(0, 0, 20),
+                    N("CITY: main street"), G(0, 0, 30), F(18), G(0, 0, 44), F(18), G(0, 0, 56), F(18), G(0, 0, 60),
+                    N("CITY: hacked barricade"), HACKP(0), E("city.g1"), G(0, 0, 74), F(22),
+                    N("CITY: tower climb"), G(6, 0, 94), TW(6, 6.6f, 98.6f), TW(-6.5f, 14.6f, 98.6f), TW(0, 16.4f, 101.2f), G(0, 14, 106),
+                    N("CITY: rooftop ambush"), F(30), E("city.arena"), G(0, 14, 126), G(0, 14, 134), G(0, 14, 145),
+                    N("CITY: helipad holdout"), HOLDP(), E("city.holdout"), G(0, 14, 151), W(0.5f), E("pw.grapple"), E("ab.grapple"), E("fbi.done"),
+                    G(0, 14, 157), G(0, 14, 160), EL(LV_HUB)};
+        runRoute(g, bot, 900, getenv("WL_CTRACE") != nullptr);
+        bool ok = bot.failures == 0 && g.lv.id == LV_HUB && g.has("pw.grapple");
+        printf("[bot] city: %s in %.0fs, would-be hits %zu, alarms raised, agents fought (failures %d)\n", ok ? "PASS" : "FAIL", bot.total, g.testLog.size(), bot.failures);
+        return ok ? 0 : 2;
+    }
+    if (which == "hacker") {
+        // the Clockwood's optional server room: 5-terminal puzzle -> the FIREWALL power; one deliberate mistake first
+        freshFeatureSave(g);
+        g.godMode = true;
+        g.setFlag("clock.g2");
+        g.enterLevel(LV_CLOCK, 2);
+        g.dialog.clear();
+        int pi = 1;
+        HackPuzzle& P = g.lv.puzzles[pi];
+        Bot bot(g);
+        bot.cmds = {G(0, 18, 192), G(-6, 18, 192.5f)};
+        runRoute(g, bot, 30);
+        // wait for the show, then burn a wrong terminal on purpose
+        for (int k = 0; k < 120 * 8 && P.state != 2; k++) g.update(SIM_DT, InputState());
+        int wrong = (P.seq[0] + 1) % 5;
+        V3 a = g.pl.pos + V3(0, 1.25f, 0), at;
+        for (auto& T : g.lv.terminals) if (T.puzzle == pi && T.slot == wrong) g.hitTerminal(a, T.pos, at);
+        int drones = 0; for (auto& e : g.enemies) if (e.alive && e.type == E_DRONE) drones++;
+        bool denied = P.state == 4 && drones >= 2 && g.glitch > 0.5f;
+        printf("[bot] hacker: wrong terminal -> ACCESS DENIED + %d firewall drones + glitch: %s\n", drones, denied ? "OK" : "FAIL");
+        Bot b2(g);
+        b2.cmds = {HACKP(pi), E("clock.servers"), G(-8, 18, 192.5f), W(0.5f), E("pw.firewall"), E("ab.firewall")};
+        runRoute(g, b2, 200);
+        bool ok = denied && b2.failures == 0;
+        // GL1TCH's new tricks all show up in a long fight
+        g.save.flags.erase("boss.1");
+        g.enterLevel(LV_CLOCK, 2);
+        g.pl.pos = g.lv.boss.center + V3(0, 0, -8); g.startBoss();
+        bool sawDecoy = false, sawVirus = false, sawCode = false, sawTele = false;
+        V3 p0 = g.boss.v[1];
+        g.boss.hp = 6;  // turbo mode
+        for (int k = 0; k < 120 * 40; k++) {
+            g.update(SIM_DT, InputState());
+            for (auto& e : g.enemies) if (e.alive) { sawDecoy |= e.type == E_DECOY; sawVirus |= e.type == E_VIRUS; }
+            for (auto& pr : g.projs) sawCode |= pr.type == PR_CODE;
+            if (g.boss.i[0] && len(g.boss.v[1] - p0) > 1) sawTele = true;
+            g.pl.hp = 99; g.pl.dead = false;
+        }
+        printf("[bot] hacker: GL1TCH teleports %s, code bolts %s, viruses %s, fake Wicks %s\n", sawTele ? "yes" : "NO", sawCode ? "yes" : "NO", sawVirus ? "yes" : "NO", sawDecoy ? "yes" : "NO");
+        ok = ok && sawDecoy && sawVirus && sawCode && sawTele;
+        printf("[bot] hacker: %s\n", ok ? "PASS" : "FAIL");
+        return ok ? 0 : 2;
+    }
+    if (which == "powers") {
+        freshFeatureSave(g);
+        g.godMode = true;
+        for (const char* f : {"ab.firewall", "ab.grapple"}) g.setFlag(f);
+        int fails = 0;
+        auto check = [&](const char* what, bool ok, const std::string& extra = "") { printf("[bot] powers: %-46s %s %s\n", what, ok ? "OK" : "FAIL", extra.c_str()); if (!ok) fails++; };
+        auto sim = [&](float secs, InputState in) { for (float t = 0; t < secs; t += SIM_DT) { g.update(SIM_DT, in); in.clearEdges(); g.dialog.clear(); g.screen = SC_PLAY; } };
+        // overclock: combos charge it; it slows enemies but not Wick
+        g.enterLevel(LV_WHARF, 1);
+        g.dialog.clear();
+        for (int k = 0; k < 15; k++) g.addCombo(g.pl.pos);
+        check("hits charge Overclock to full", g.ocCharge >= 1);
+        g.enemies.clear();
+        g.spawnEnemy(E_GLOOMLING, g.pl.pos + V3(0, 0.3f, 30), -1);
+        g.enemies[0].state = 0;
+        InputState oc; oc.pressed[A_OVERCLOCK] = true; sim(SIM_DT, oc);
+        bool active = g.ocT > 0;
+        float e0 = g.enemies[0].anim; sim(1.0f, InputState()); float slowed = g.enemies[0].anim - e0;
+        check("Overclock slows the world to ~30%", active && slowed > 0.25f && slowed < 0.35f, "enemy time in 1s: " + std::to_string(slowed));
+        sim(5, InputState());
+        check("Overclock wears off", g.ocT <= 0);
+        // firewall: gloomlings can't walk through it, and it burns them
+        g.enterLevel(LV_WHARF, 1);
+        g.dialog.clear();
+        g.camYaw = 0; g.camPitch = -0.2f; g.pl.yaw = 0;
+        g.updateCamera(SIM_DT); g.computeAim();
+        InputState fw; fw.pressed[A_FIREWALL] = true; sim(SIM_DT, fw);
+        check("Firewall drops a wall of fire", g.firewalls.size() == 1);
+        V3 mid = g.firewalls.empty() ? g.pl.pos : (g.firewalls[0].a + g.firewalls[0].b) * 0.5f;
+        g.enemies.clear();
+        g.spawnEnemy(E_KNIGHT, mid + V3(0, 0.1f, 6), -1);
+        Enemy& kn = g.enemies[0];
+        kn.state = 1; kn.yaw = PI;
+        float hp0 = kn.hp; bool crossed = false;
+        for (int k = 0; k < 120 * 4; k++) { g.update(SIM_DT, InputState()); if (g.enemies[0].pos.z < mid.z - 0.3f) crossed = true; g.dialog.clear(); }
+        check("knights can't cross the Firewall, and burn", !crossed && g.enemies[0].hp < hp0, "hp " + std::to_string(g.enemies[0].hp) + "/" + std::to_string(hp0));
+        // grapple: throw to a hook, hold grapple, get pulled up to it
+        g.enterLevel(LV_HUB, 0);
+        g.dialog.clear();
+        g.pl.pos = V3(0, 0, 42); g.pl.safePos = g.pl.pos;  // the broken north bridge: hook at (0, 2.2, 57.5)
+        Bot bot(g);
+        bot.cmds = {T(0, 2.2f, 57.5f)};
+        runRoute(g, bot, 10);
+        bool hooked = g.flame.st == F_HOVER && g.flame.anchored >= 0;
+        float z0 = g.pl.pos.z, maxY = g.pl.pos.y;
+        InputState gr; gr.pressed[A_GRAPPLE] = true; gr.down[A_GRAPPLE] = true;
+        bool swung = false;
+        for (int k = 0; k < 120 * 3; k++) {
+            g.update(SIM_DT, gr); gr.pressed[A_GRAPPLE] = false; maxY = std::max(maxY, g.pl.pos.y); if (g.grappling) swung = true;
+            if (getenv("WL_GTRACE") && k % 12 == 0) printf("   k=%d grap=%d rope=%.1f pos=(%.1f %.1f %.1f) vel=(%.1f %.1f %.1f) flame=%d anch=%d\n", k, g.grappling, g.ropeLen, g.pl.pos.x, g.pl.pos.y, g.pl.pos.z, g.pl.vel.x, g.pl.vel.y, g.pl.vel.z, g.flame.st, g.flame.anchored);
+        }
+        check("Ember Grapple pulls Wick across the gap", hooked && swung && g.pl.pos.z > z0 + 10 && g.pl.pos.y > -0.5f, "z " + std::to_string(z0) + " -> " + std::to_string(g.pl.pos.z) + ", peak y " + std::to_string(maxY));
+        printf("[bot] powers: %s (%d failures)\n", fails ? "FAIL" : "PASS", fails);
+        return fails ? 2 : 0;
+    }
+    if (which == "extras") {
+        freshFeatureSave(g);
+        g.godMode = true;
+        int fails = 0;
+        auto check = [&](const char* what, bool ok, const std::string& extra = "") { printf("[bot] extras: %-46s %s %s\n", what, ok ? "OK" : "FAIL", extra.c_str()); if (!ok) fails++; };
+        auto talkTo = [&](int who) {
+            for (int i = 0; i < (int)g.lv.talkers.size(); i++) if (g.lv.talkers[i].who == who) {
+                g.talk(i);
+                for (int k = 0; k < 40 && !g.dialog.empty(); k++) { InputState a; a.pressed[A_INTERACT] = true; g.update(SIM_DT, a); for (int j = 0; j < 30; j++) g.update(SIM_DT, InputState()); }
+                return true;
+            }
+            return false;
+        };
+        g.enterLevel(LV_HUB, 0);
+        g.dialog.clear();
+        // 1. Mira's cat, up in the treehouse
+        talkTo(11);
+        Bot b1(g);
+        b1.cmds = {G(-8, 0, -14), G(-18, 0, -8), G(-21, 0, 0), TW(-26.3f, 8.6f, 0), G(-27.6f, 7, 0.3f), TALKC(), E("quest.catfound"), G(-26.5f, 7, 0), G(-24, 0, 0), G(-22.3f, 0, -2.6f)};
+        runRoute(g, b1, 60);
+        talkTo(11);
+        check("Mira's cat: rescued, Cat Ears received", b1.failures == 0 && g.has("quest.catdone") && g.has("hat.1"));
+        // 2. Old Fenn's six braziers
+        talkTo(13);
+        Bot b2(g);
+        struct LP { V3 stand, lamp; } lamps[] = {{V3(-28, 0, 7), V3(-33, 0, 9)}, {V3(-6, 0, 28), V3(-2, 0, 31)}, {V3(18, 0, 25), V3(18, 0, 31)},
+                                                 {V3(26, 0, 0), V3(31, 0, -2)}, {V3(16, 0, -22), V3(16, 0, -28)}, {V3(-16, 0, -22), V3(-18, 0, -28)}};
+        b2.cmds.push_back(G(-20, 0, 4));
+        for (auto& l : lamps) { if (l.lamp.x == 18 && l.lamp.z == 31) b2.cmds.push_back(G(0, 0, 23));
+            if (l.lamp.x == -18 && l.lamp.z == -28) { b2.cmds.push_back(G(9, 0, -16)); b2.cmds.push_back(G(-9, 0, -16)); } b2.cmds.push_back(G(l.stand.x, 0, l.stand.z)); b2.cmds.push_back(T(l.lamp.x, 1.35f, l.lamp.z)); b2.cmds.push_back(R_()); }
+        b2.cmds.push_back(E("quest.lamps"));
+        b2.cmds.push_back(G(-10, 0, -8)); b2.cmds.push_back(G(-6, 0, 12));
+        runRoute(g, b2, 120);
+        talkTo(13);
+        check("Old Fenn's braziers: all six lit, cap received", b2.failures == 0 && g.has("quest.fenndone") && g.has("hat.2"));
+        // 3. the candle race (the bot runs it with dashes)
+        g.pl.pos = V3(2, 0, 12); g.pl.vel = V3();
+        talkTo(14);
+        bool started = g.raceIdx == 0;
+        {
+            float t = 0;
+            while (g.raceIdx >= 0 && t < 80) {
+                InputState in;
+                const RaceRing& r = g.lv.race[g.raceIdx];
+                V3 d = flatXZ(r.pos - g.pl.pos);
+                if (lenXZ(d) > 0.01f) g.camYaw = std::atan2(d.x, d.z);
+                in.moveY = 1;
+                if (g.pl.grounded && g.pl.dashCd <= 0 && lenXZ(d) > 5) { in.pressed[A_DASH] = true; in.down[A_DASH] = true; }
+                if (r.high && lenXZ(d) < 3.2f && g.pl.grounded) { in.pressed[A_JUMP] = true; in.down[A_JUMP] = true; }
+                else if (r.high && !g.pl.grounded) in.down[A_JUMP] = true;
+                g.update(SIM_DT, in); t += SIM_DT;
+            }
+        }
+        float best = g.save.raceBest;
+        for (int k = 0; k < 40 && !g.dialog.empty(); k++) { InputState a; a.pressed[A_INTERACT] = true; g.update(SIM_DT, a); for (int j = 0; j < 30; j++) g.update(SIM_DT, InputState()); }
+        check("candle race: all 12 rings, medal + crown", started && best > 0 && g.has("race.m1"), "time " + std::to_string(best) + "s" + (g.has("hat.4") ? " GOLD (crown)" : (g.has("race.m2") ? " silver" : " bronze")));
+        // 4. the mirror swaps hats
+        int h0 = g.save.hat; g.cycleHat(); int h1 = g.save.hat; g.dialog.clear();
+        check("wardrobe mirror swaps hats", h0 != h1, std::to_string(h0) + " -> " + std::to_string(h1));
+        // 5. fishing for Gil's Golden Carp
+        g.enterLevel(LV_WHARF, 0);
+        g.dialog.clear();
+        talkTo(4);
+        bool quest = g.has("quest.carp");
+        int caught0 = g.save.fishCaught;
+        for (int tries = 0; tries < 12 && !g.has("fish.3"); tries++) {
+            g.pl.pos = V3(1.8f, 0, 7.5f); g.pl.vel = V3();
+            int spot = -1; for (int i = 0; i < (int)g.lv.talkers.size(); i++) if (g.lv.talkers[i].who == 16) { spot = i; break; }
+            g.talk(spot);
+            for (int k = 0; k < 120 * 6 && g.fishState == 1; k++) g.update(SIM_DT, InputState());
+            { InputState a; a.pressed[A_INTERACT] = true; g.update(SIM_DT, a); }
+            for (int k = 0; k < 120 * 6 && g.fishState == 3; k++) {
+                InputState a;
+                if (std::fabs(g.fishNeedle - g.fishZone) < g.fishZoneW * 0.3f) a.pressed[A_INTERACT] = true;
+                g.update(SIM_DT, a);
+            }
+            g.dialog.clear();
+        }
+        talkTo(4);
+        check("fishing: Golden Carp caught, Fisher's Hat received", quest && g.has("fish.3") && g.has("hat.3"), std::to_string(g.save.fishCaught - caught0) + " fish caught");
+        // 6. secret hats: pick up the Top Hat on the tiny island
+        g.pl.pos = V3(-14, 0.3f, 78.5f); g.pl.vel = V3();
+        for (int k = 0; k < 60; k++) g.update(SIM_DT, InputState());
+        g.dialog.clear();
+        check("secret Top Hat on the Wharf islet", g.has("hat.5") && g.save.hat == 5);
+        // 7. save/load keeps hat + fish + race
+        g.writeSave(); SaveData keep = g.save; g.save = SaveData(); g.loadGame();
+        check("save/load keeps hats, fish and race times", g.save.hat == keep.hat && g.save.fishCaught == keep.fishCaught && std::fabs(g.save.raceBest - keep.raceBest) < 0.01f);
+        printf("[bot] extras: %s (%d failures)\n", fails ? "FAIL" : "PASS", fails);
+        return fails ? 2 : 0;
+    }
+    return -1;
+}
+
 int runAutotest(Game& g, const std::string& which) {
     setenv("WICKLIGHT_NO_SAVE", "", 0);
+    { int r = runFeatureTest(g, which); if (r >= 0) return r; }
     if (which.rfind("endless", 0) == 0) {
         // play generated Endless Dark levels back to back: "endless" (with all powers) or "endless-nowarp"
         bool nowarp = which.find("nowarp") != std::string::npos;

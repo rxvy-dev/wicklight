@@ -16,6 +16,8 @@ enum Tile {
     T_STONE, T_GRASS_SIDE, T_LOG_TOP, T_GLASS, T_ORE_EMBER, T_ORE_CRYSTAL, T_ORE_SCRAP, T_LAMPBLOCK, T_CHEST, T_BENCH_TOP,
     T_BENCH_SIDE, T_FURNACE, T_FORGE, T_LADDER, T_JUMPPAD, T_BOMB, T_SAPLING, T_FLOWER_RED, T_FLOWER_YELLOW, T_GEAR_ICON,
     T_WAXLUMP_ICON, T_FLAME_ICON, T_CRYSTAL_ICON, T_BED_ICON, T_DOOR_ICON, T_CANDLE_ICON, T_CRACK,
+    // glitch screens and Lumen City
+    T_CODE, T_ASPHALT, T_BRICK, T_OFFICE,
     T_COUNT
 };
 
@@ -103,6 +105,7 @@ struct Renderer {
     GLuint curProg = 0;
     float overlayA = 0; V3 overlayCol;
     float fade = 0;
+    float glitch = 0;          // 0..1 screen glitch (hacker effects)
     float colorLevels = 24.f;
     int uiScaleOverride = 0;  // 0 = auto
 

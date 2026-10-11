@@ -11,10 +11,13 @@
 #include <cerrno>
 
 extern int g_dmgKind;
+void collectExtra(Game& g, Pickup& p);
+bool talkExtra(Game& g, int ti);
+void fennLampLit(Game& g);
 
 // ------------------------------------------------------------------ text
 const char* levelName(LevelId id) {
-    static const char* n[] = {"Lumen Hollow", "The Sunken Wharf", "The Clockwood", "The Ashen Vaults", "The Lighthouse Spire", "The Junkyard of Lost Machines", "The Endless Dark", "Wick's Island"};
+    static const char* n[] = {"Lumen Hollow", "The Sunken Wharf", "The Clockwood", "The Ashen Vaults", "The Lighthouse Spire", "The Junkyard of Lost Machines", "The Endless Dark", "Wick's Island", "Lumen City"};
     return (id >= 0 && id < LV_COUNT) ? n[id] : "?";
 }
 
@@ -37,7 +40,7 @@ std::string memoryText(int i) {
 }
 
 std::string actionName(int a) {
-    static const char* n[A_COUNT] = {"Move forward", "Move back", "Move left", "Move right", "Jump", "Dash", "Throw / Recall", "Warp", "Bloom", "Interact", "Pause", "Journal"};
+    static const char* n[A_COUNT] = {"Move forward", "Move back", "Move left", "Move right", "Jump", "Dash", "Throw / Recall", "Warp", "Bloom", "Interact", "Pause", "Journal", "Ember Grapple", "Firewall", "Overclock"};
     return (a >= 0 && a < A_COUNT) ? n[a] : "?";
 }
 
@@ -60,6 +63,7 @@ Settings::Settings() {
     keys[A_FWD] = SDL_SCANCODE_W; keys[A_BACK] = SDL_SCANCODE_S; keys[A_LEFT] = SDL_SCANCODE_A; keys[A_RIGHT] = SDL_SCANCODE_D;
     keys[A_JUMP] = SDL_SCANCODE_SPACE; keys[A_DASH] = SDL_SCANCODE_LSHIFT; keys[A_THROW] = 1000 + 1; keys[A_WARP] = 1000 + 3;
     keys[A_BLOOM] = SDL_SCANCODE_Q; keys[A_INTERACT] = SDL_SCANCODE_E; keys[A_PAUSE] = SDL_SCANCODE_ESCAPE; keys[A_JOURNAL] = SDL_SCANCODE_TAB;
+    keys[A_GRAPPLE] = SDL_SCANCODE_F; keys[A_FIREWALL] = SDL_SCANCODE_R; keys[A_OVERCLOCK] = SDL_SCANCODE_C;
 }
 
 // ------------------------------------------------------------------ paths & persistence
@@ -125,6 +129,7 @@ void Game::writeSave() {
         while (std::getline(ds, l)) if (!l.empty()) save.voxLines.push_back(l);
     }
     for (auto& l : save.voxLines) o << l << "\n";
+    o << "hat " << save.hat << "\n" << "fish " << save.fishCaught << "\n" << "race " << save.raceBest << "\n";
     for (auto& f : save.flags) o << "flag " << f << "\n";
     o << "end\n";
     if (!atomicWrite(saveDir + "/save.dat", o.str())) {
@@ -160,6 +165,9 @@ bool Game::loadGame() {
         else if (key == "inv") { int id = 0, n = 0; if (ls >> id >> n && n > 0) s.inv[id] = n; }
         else if (key == "chest") { int k = 0; ls >> k; auto& c = s.chests[k]; int id, n; while (ls >> id >> n) if (n > 0) c[id] = n; }
         else if (key == "vx") s.voxLines.push_back(line);
+        else if (key == "hat") { ls >> s.hat; if (s.hat < 0 || s.hat > 31) s.hat = 0; }
+        else if (key == "fish") ls >> s.fishCaught;
+        else if (key == "race") { ls >> s.raceBest; if (!(s.raceBest >= 0)) s.raceBest = 0; }
         else if (key == "flag") { std::string f; ls >> f; if (!f.empty()) s.flags.insert(f); }
         else if (key == "end") { ended = true; break; }
     }
@@ -178,6 +186,9 @@ bool Game::loadGame() {
     static const char* AB[3] = {"ab.warp", "ab.bloom", "ab.sunflare"};
     for (int i = 0; i < 3; i++) if (has("heart." + std::to_string(i))) setFlag(AB[i]);
     if (has("heart.4")) setFlag("spark.core");
+    if (has("heart.1")) setFlag("ab.overclock");
+    if (has("pw.firewall")) setFlag("ab.firewall");
+    if (has("pw.grapple")) setFlag("ab.grapple");
     return true;
 }
 
@@ -300,6 +311,7 @@ void Game::enterLevel(LevelId id, int spawn, bool fromSave) {
     camDistCur = camDist;
     camOverride = 0;
     bolts.clear(); pendingSpawns.clear(); floats.clear();
+    firewalls.clear(); grappling = false; ocT = 0; alarmT = 0; raceIdx = -1; fishState = 0; glitch = 0;
     mining = false; tgtValid = false; bombs.clear(); sleepT = 0;
     if (id == LV_HOME) {
         collectForges();
@@ -339,6 +351,7 @@ void Game::startDialog(const std::vector<DialogLine>& lines, std::function<void(
 }
 
 void Game::talk(int ti) {
+    if (talkExtra(*this, ti)) return;
     const Talker& t = lv.talkers[ti];
     if (t.who == 0) {  // Marrow
         int hearts = countFlags("heart.");
@@ -347,6 +360,12 @@ void Game::talk(int ti) {
             L = {{"MARROW", "Look at it, Wick. A small light. Just enough to read by."},
                  {"MARROW", "And there - see? Shadows on the cobbles again. Ordinary ones."},
                  {"MARROW", "Go on, little flame. The Hollow is yours to wander."}};
+        } else if (has("boss.1") && !has("talk.fbi")) {
+            L = {{"MARROW", "Wick! Have you SEEN the posters? 'WANTED: THE HACKER'. With YOUR face on them!"},
+                 {"MARROW", "GL1TCH must have rerouted his trail to you before he went offline. The FBI is in Lumen City, hunting for 'a small, warm suspect'."},
+                 {"MARROW", "You don't have to go. But Sprocket says he's built you something special, and it's waiting at the city's helipad."},
+                 {"MARROW", "The road to the city is the bridge EAST of the plaza. Mind the searchlights."}};
+            setFlag("talk.fbi");
         } else if (has("hub.spire")) {
             L = {{"MARROW", "The Spire door is open. I can feel the cold pouring down from it."},
                  {"MARROW", "Wick... whatever is waiting at the top, I made it. Every bright year of it."},
@@ -402,6 +421,18 @@ void Game::talk(int ti) {
                                   {"GIL", "There's a great barnacled BELL at the end of the docks. Rings so loud my teeth hum."},
                                   {"GIL", "When it rings, it TILTS. Its soft glowing middle shows. Throw your fire right in there."},
                                   {"GIL", "Here - embers from my stove. Take 'em. Spend 'em on something shiny."}}; gift = 15; }
+                else if (!has("quest.carp")) {
+                    L = {{"GIL", "Say, you like fishing? There's a fish in these waters made of pure gold. The GOLDEN CARP."},
+                         {"GIL", "Forty years I've tried. You find a fishing spot - the posts on the docks - and [" + bindingName(settings.keys[A_INTERACT]) + "] to cast."},
+                         {"GIL", "When it bites, press quick! Then press again when the needle's in the green. Bring me that carp and I'll give you my lucky hat."}};
+                    setFlag("quest.carp");
+                } else if (has("fish.3") && !has("quest.carpdone")) {
+                    L = {{"GIL", "Is that... THE GOLDEN CARP?! Forty years! And a candle does it in an afternoon!"}, {"GIL", "A deal's a deal. My lucky fisher's hat. And some embers for the bait."},
+                         {"", "You received 60 embers and the FISHER'S HAT!"}};
+                    setFlag("quest.carpdone"); save.embers += 60;
+                    startDialog(L, [this]() { setFlag("hat.3"); save.hat = 3; showToast("NEW HAT: Fisher's Hat", "Swap hats at the mirror in Marrow's workshop"); audio::play(SFX_SHARD, 1, 1.2f); writeSave(); });
+                    return;
+                } else if (!has("fish.3")) L = {{"GIL", "Still after that Golden Carp? Keep casting! You've caught " + std::to_string(save.fishCaught) + " fish so far."}};
                 else L = {{"GIL", "Jump the rings it makes, little candle. Jump 'em!"}};
                 break;
             case 5:  // Tilda the clockmaker
@@ -493,6 +524,7 @@ void Game::collectPickup(Pickup& p) {
             save.embers += p.value;
             audio::play(SFX_TICK, 0.6f, 1.6f + 0.02f * (p.value % 10));
             break;
+        case PK_HAT: case PK_POWER: collectExtra(*this, p); break;
         case PK_WAX:
             pl.hp = std::min(maxHp(), pl.hp + 1);
             if (lv.id == LV_HOME) addItem(IT_WAX, 1);
@@ -530,12 +562,13 @@ void Game::collectPickup(Pickup& p) {
                      {"WARP", "Throw it onto ledges, across gaps, onto glowing brass hooks - then follow."},
                      {"", "A door of light has opened back to the Hollow."}};
             } else if (p.index == 1) {
-                setFlag("ab.bloom");
-                showToast("NEW POWER: BLOOM", "[" + bindingName(settings.keys[A_BLOOM]) + "] detonates your flame");
+                setFlag("ab.bloom"); setFlag("ab.overclock");
+                showToast("NEW POWERS: BLOOM + OVERCLOCK", "[" + bindingName(settings.keys[A_BLOOM]) + "] detonates your flame");
                 L = {{"BEACON-HEART", "The Clockwood's heart ticks once, and your flame swells."},
                      {"BLOOM", "Press [" + bindingName(settings.keys[A_BLOOM]) + "] to burst your flame wherever it is - in hand or far away."},
                      {"BLOOM", "Blooms burn everything nearby, light many braziers at once, and melt wax seals."},
-                     {"", "Then your flame reforms on your head, ready to throw again."}};
+                     {"OVERCLOCK", "And GL1TCH's stolen clock-cycles are yours now. Every hit you land charges OVERCLOCK."},
+                     {"OVERCLOCK", "When the meter is full, press [" + bindingName(settings.keys[A_OVERCLOCK]) + "]: the whole world slows down - except you."}};
             } else if (p.index == 4) {
                 setFlag("spark.core");
                 showToast("SPARK CORE", "+1 robot slot, and your robots get stronger");
@@ -578,6 +611,7 @@ void Game::lightBrazier(int i, bool byBloom) {
     b.litT = b.timed;
     audio::playAt(SFX_BRAZIER, b.pos);
     burst(b.pos, hexColor(0xffa040), 24, 4, 0.1f, 3, 0.8f, -2);
+    if (b.gateGroup == 70) { fennLampLit(*this); return; }
     if (b.gateGroup >= 0) {
         bool all = true;
         for (auto& o : lv.braziers) if (o.gateGroup == b.gateGroup && !o.lit) all = false;
@@ -859,6 +893,7 @@ void Game::frame(float dt, InputState& in, float lookDX, float lookDY) {
     areaTitleT = std::max(0.f, areaTitleT - dt);
     flashOverlay = std::max(0.f, flashOverlay - dt * 1.5f);
     respawnFade = std::max(0.f, respawnFade - dt * 1.5f);
+    glitch = std::max(0.f, glitch - dt * 1.6f);
     bloomFlash = std::max(0.f, bloomFlash - dt * 2.5f);
     bloomR += dt * 14;
 
@@ -953,21 +988,29 @@ void Game::update(float dt, const InputState& in) {
     if (screen != SC_PLAY) return;
     updateCamera(dt);
     computeAim();
-    updatePlayer(dt, in);
+    bool wasFishing = fishState > 0;
+    InputState pin = in;
+    if (updateFishing(dt, in)) pin = InputState();  // fishing: Wick stands still
+    updatePlayer(dt, pin);
     if (lv.id == LV_HOME && vox.active) {
         InputState masked = in;
         updateVoxel(dt, in, masked);
         if (screen != SC_PLAY) return;
         updateFlame(dt, masked);
-    } else updateFlame(dt, in);
-    updateEnemies(dt);
+    } else updateFlame(dt, pin);
+    updatePowers(dt, pin);
+    // Overclock: the world runs slow, Wick doesn't
+    float wdt = dt * worldScale();
+    updateEnemies(wdt);
     updateBots(dt);
-    updateProjectiles(dt);
-    updateBoss(dt);
+    updateProjectiles(wdt);
+    updateBoss(wdt);
+    if (screen != SC_PLAY) return;
+    updateExtras(dt, pin);
     if (screen != SC_PLAY) return;
 
     // talkers
-    if (in.pressed[A_INTERACT] && !pl.dead) {
+    if (in.pressed[A_INTERACT] && !pl.dead && !wasFishing && fishState == 0) {
         bool talked = false;
         for (int i = 0; i < (int)lv.talkers.size(); i++)
             if (len(lv.talkers[i].pos - pl.pos) < 3.0f) { talk(i); talked = true; break; }

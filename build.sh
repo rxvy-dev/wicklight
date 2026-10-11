@@ -12,7 +12,7 @@ set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
 APP=wicklight
-VERSION=1.0.1
+VERSION=1.1.0
 BUILD=build
 DIST=dist
 CXXFLAGS_COMMON=(-std=c++17 -O2 -Wall -Wno-unused-parameter -Wno-unused-result -Isrc -Ithird_party/include)
@@ -163,6 +163,8 @@ case "$cmd" in
                say "Endless Dark: playing generated depths 1-30 back to back (and 1-8 without warp) ..."
                WICKLIGHT_DATA_DIR="$(mktemp -d)" "$BUILD/$APP" --headless --autotest endless | grep -E 'depth|endless:'; [ "${PIPESTATUS[0]}" -eq 0 ] || { say "endless test FAILED"; exit 1; }
                WICKLIGHT_DATA_DIR="$(mktemp -d)" "$BUILD/$APP" --headless --autotest endless-nowarp | grep -E 'endless:' || exit 1
+               say "new content: hacker puzzles + GL1TCH, the three new powers, Lumen City, side jobs / fishing / race / hats ..."
+               for t in hacker powers city extras; do WICKLIGHT_DATA_DIR="$(mktemp -d)" "$BUILD/$APP" --headless --autotest "$t" | grep -E "^\[bot\] $t|powers:|extras:|hacker:" ; [ "${PIPESTATUS[0]}" -eq 0 ] || { say "$t test FAILED"; exit 1; }; done
                say "Wick's Island block world test (mine, place, craft, doors, beds, chests, ladders, bombs, night, saves) ..."
                WICKLIGHT_DATA_DIR="$(mktemp -d)" "$BUILD/$APP" --headless --autotest island | grep -E 'island'; [ "${PIPESTATUS[0]}" -eq 0 ] || { say "island test FAILED"; exit 1; } ;;
     release)   release ;;

@@ -2,6 +2,8 @@
 // the Ashen Vaults and the Lighthouse Spire.
 #include "builder.h"
 
+void addPuzzle(LB& b, const AABB& zone, const std::vector<V3>& pos, const std::vector<float>& yaw, int len, uint32_t seed, int group, const std::string& flag, int reward, V3 rewardPos);
+
 static void dock(LB& b, float x0, float z0, float x1, float z1, float y, float postDepth = 3) {
     b.slab(x0, z0, x1, z1, y, T_PLANK, T_DARKWOOD, 0.4f);
     for (float x = std::min(x0, x1) + 0.5f; x <= std::max(x0, x1) - 0.4f; x += std::max(2.f, (std::fabs(x1 - x0) - 1) / 2))
@@ -161,7 +163,8 @@ void buildHub(Level& L, Game& g) {
     b.arch(V3(0, 0, 66.5f), 4, 4.5f, 1, T_STONEBRICK, true);
     b.exit(AABB(V3(-2.5f, 0, 67), V3(2.5f, 4, 70)), LV_CLOCK, 0, "", "", "To the Clockwood");
     b.hint(AABB(V3(-4, 0, 34), V3(4, 3, 44)), "The bridge is broken. Your flame can cross what your feet cannot...", "", "ab.warp");
-    b.hint(AABB(V3(-4, 0, 34), V3(4, 3, 44)), "Throw your flame across [{THROW}], then WARP to it [{WARP}].", "ab.warp");
+    b.hint(AABB(V3(-4, 0, 34), V3(4, 3, 44)), "Throw your flame across [{THROW}], then WARP to it [{WARP}].", "ab.warp", "ab.grapple");
+    b.hint(AABB(V3(-4, 0, 34), V3(4, 3, 44)), "Throw your flame onto the hook, then HOLD [{GRAPPLE}] to swing across on the Ember Grapple!", "ab.grapple");
     b.spawn(V3(0, 0, -11.5f), PI);  // 1 placeholder (overwritten below)
     L.spawns[1] = {V3(-52, -2, 0), PI / 2};   // 1: west docks (from the Wharf)
     b.spawn(V3(0, 0, 61), PI);                // 2: north bridge (from the Clockwood)
@@ -223,6 +226,61 @@ void buildHub(Level& L, Game& g) {
     b.light(V3(-14, 3, 0), 8, hexColor(0x60ff90), 1.0f);
     b.spawn(V3(8.5f, 0, 0), 0);   // 6: back from the Endless Dark
     b.spawn(V3(-8.5f, 0, 0), 0);   // 7: back from Wick's Island
+
+    // ---- east bridge to Lumen City (the FBI level)
+    b.slab(36, 9, 56, 15, 0, T_PLANK, T_DARKWOOD, 0.5f);
+    for (float x = 38; x < 56; x += 4.5f) { b.pillar(x, 9.4f, -6, 0, 0.35f, T_STONEBRICK); b.pillar(x, 14.6f, -6, 0, 0.35f, T_STONEBRICK); }
+    b.rail(V3(36, 0, 9.1f), V3(51, 0, 9.1f), 1.0f); b.rail(V3(36, 0, 14.9f), V3(51, 0, 14.9f), 1.0f);
+    b.arch(V3(52, 0, 12), 4.4f, 4.6f, 1, T_BRICK, false);
+    L.decor.emis = 2.2f;
+    L.decor.color = hexColor(0xff3030); L.decor.cube(M4::translate(V3(52, 5.9f, 10.2f)) * M4::scale(V3(0.5f, 0.4f, 1.2f)), T_WHITE);
+    L.decor.color = hexColor(0x3060ff); L.decor.cube(M4::translate(V3(52, 5.9f, 13.8f)) * M4::scale(V3(0.5f, 0.4f, 1.2f)), T_WHITE);
+    L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
+    b.light(V3(52, 5, 10.5f), 7, hexColor(0xff3030), 0.9f); b.light(V3(52, 5, 13.5f), 7, hexColor(0x3060ff), 0.9f);
+    b.exit(AABB(V3(52.6f, 0, 10), V3(55, 4, 14)), LV_CITY, 0, "boss.1", "Police barricade. (Beat GL1TCH in the Clockwood first - then the FBI comes looking for YOU)", "To Lumen City");
+    b.hint(AABB(V3(37, -1, 9), V3(52, 3, 15)), "LUMEN CITY. Ever since GL1TCH, the FBI has been hunting 'the hacker'... and the posters have YOUR face.", "boss.1", "fbi.done");
+    b.hint(AABB(V3(37, -1, 9), V3(52, 3, 15)), "A barricade blocks the road to Lumen City.", "", "boss.1");
+    b.spawn(V3(46, 0, 12), -PI / 2);   // 8: back from Lumen City
+    if (g.has("boss.1")) {  // WANTED poster
+        L.decor.color = hexColor(0xe8d8a8); L.decor.cube(M4::translate(V3(19.93f, 2.6f, 18)) * M4::scale(V3(0.06f, 1.6f, 1.2f)), T_WHITE);
+        L.decor.color = hexColor(0x3a2010); L.decor.cube(M4::translate(V3(19.9f, 3.15f, 18)) * M4::scale(V3(0.06f, 0.18f, 0.9f)), T_WHITE);
+        L.decor.color = hexColor(0xeadfc4); L.decor.cube(M4::translate(V3(19.9f, 2.4f, 18)) * M4::scale(V3(0.06f, 0.6f, 0.5f)), T_WAX);
+        L.decor.emis = 1.5f; L.decor.color = hexColor(0xffa040); L.decor.cube(M4::translate(V3(19.9f, 2.85f, 18)) * M4::scale(V3(0.06f, 0.25f, 0.18f)), T_WHITE);
+        L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
+    }
+
+    // ---- side jobs around the Hollow
+    // Mira lost her cat Whiskers - he's up in the old treehouse west of the plaza
+    L.decor.cylinder(M4::translate(V3(-28, 4, 0)) * M4::scale(V3(0.9f, 8, 0.9f)), T_BARK, 8, true, 3);
+    b.solid(AABB(V3(-28.4f, 0, -0.4f), V3(-27.6f, 6.6f, 0.4f)), T_BARK, -1, V3(1, 1, 1), false);
+    b.solid(AABB(V3(-30, 6.6f, -2), V3(-26, 7, 2)), T_PLANK, T_PLANK);
+    b.rail(V3(-30, 7, -2), V3(-30, 7, 2), 0.7f);
+    L.decor.sphere(M4::translate(V3(-28, 11.5f, 0)) * M4::scale(V3(6.5f, 4.5f, 6.5f)), T_LEAVES, 8, 5);
+    L.decor.sphere(M4::translate(V3(-29.5f, 10.5f, 2)) * M4::scale(V3(4, 3, 4)), T_LEAVES, 7, 5);
+    b.anchor(V3(-26.3f, 8.6f, 0));
+    b.talker(V3(-22, 0, -2), -PI / 2, 11);  // Mira
+    if (g.has("quest.catfound")) b.talker(V3(-22.4f, 0, -0.6f), -PI / 2, 12);
+    else b.talker(V3(-28.6f, 7, 0.6f), PI / 2, 12);  // Whiskers, stuck in the treehouse
+    // Old Fenn wants the six street braziers relit
+    b.talker(V3(-6, 0, 14), PI, 13);
+    for (V3 p : {V3(31, 0, -2), V3(16, 0, -28), V3(-18, 0, -28), V3(-33, 0, 9), V3(-2, 0, 31), V3(18, 0, 31)}) b.brazier(p, 70);
+    // Flick runs the candle race
+    b.talker(V3(2, 0, 14), PI, 14);
+    {
+        struct RR { float x, y, z; bool high; } rr[] = {{10, 1.4f, 18, false}, {19, 1.4f, 9, false}, {20, 2.9f, -2, true}, {13, 1.4f, -11, false}, {7, 1.4f, -16.5f, false}, {-7, 1.4f, -16.5f, false},
+                                                       {-17, 1.4f, -11, false}, {-21, 2.9f, -2, true}, {-19, 1.4f, 9, false}, {-10, 1.4f, 19, false}, {0, 1.4f, 25, false}, {5, 1.4f, 16, false}};
+        for (int i = 0; i < 12; i++) {
+            V3 p(rr[i].x, rr[i].y, rr[i].z);
+            V3 nx = i + 1 < 12 ? V3(rr[i + 1].x, rr[i + 1].y, rr[i + 1].z) : V3(2, 0, 14);
+            V3 pv = i > 0 ? V3(rr[i - 1].x, rr[i - 1].y, rr[i - 1].z) : V3(2, 0, 14);
+            V3 d = flatXZ(nx - pv);
+            L.race.push_back({p, std::atan2(d.x, d.z), rr[i].high});
+        }
+    }
+    // the wardrobe mirror in Marrow's workshop (change hats)
+    b.talker(V3(5.6f, 0, -25.5f), -PI / 2, 15);
+    b.hint(AABB(V3(3.5f, 0, -27.5f), V3(6.4f, 3, -23.5f)), "A tall old mirror. [{INTERACT}] to try on the hats you've found.");
+
 
     L.boss.type = B_NONE;
 }
@@ -340,6 +398,14 @@ void buildWharf(Level& L, Game&) {
     b.urns({V3(2.2f, 0, 6), V3(-2.2f, 0, 8), V3(-5, 0, 24), V3(5, 0, 28), V3(-10, 0, 38), V3(10, 0, 42), V3(-3, 0, 56), V3(4, 0, 56), V3(-10, 0, 100), V3(10, 0, 108), V3(-10, 0, 114), V3(3.2f, 0, 125), V3(-3.2f, 0, 128), V3(-3, 0, 144), V3(3, 0, 150), V3(-12, 0, 147)});
     b.enemy(E_GLOOMLING, V3(-8, 0.2f, 48)); b.enemy(E_GLOOMLING, V3(8, 0.2f, 53)); b.enemy(E_GLOOMLING, V3(0, 0.2f, 123)); b.enemy(E_GLOOMLING, V3(2, 0.2f, 136));
     b.emitter(AABB(V3(-20, 0, 0), V3(20, 6, 190)), 4, 4);
+    // fishing spots (Gil's Golden Carp)
+    b.talker(V3(2.5f, 0, 7.5f), PI / 2, 16);
+    b.talker(V3(-10.4f, 0, 133.6f), -PI / 2, 16);
+    b.talker(V3(10.6f, 0, 120.6f), PI / 2, 16);
+    for (V3 p : {V3(2.75f, 0, 7.5f), V3(-10.7f, 0, 133.6f), V3(10.85f, 0, 120.6f)}) b.post(p, 1.2f, 0.06f, T_DARKWOOD);
+    // a tiny island with a secret
+    b.slab(-16.5f, 76.5f, -11.5f, 80.5f, 0.3f, T_ROCK, T_ROCK, 4);
+    b.pickup(PK_HAT, V3(-14, 1.3f, 78.5f), 5, "hat.5");
 }
 
 // ================================================================== CLOCKWOOD
@@ -434,15 +500,44 @@ void buildClock(Level& L, Game&) {
     b.pickup(PK_CANDLE, V3(12.2f, 18.7f, 163.5f), 5, "candle.5");
     b.tree(V3(-11, 18, 140), 0.9f); b.tree(V3(11, 18, 141), 0.8f);
 
-    // --- timed braziers on pillars across the void
+    // --- hacked terminals on pillars across the void (GL1TCH locked the gate)
     b.solid(AABB(V3(-3, 12, 166), V3(3, 18, 200)), T_ROCK, T_GRASS);
-    b.pillar(-9, 180, 6, 22, 1.2f, T_STONEBRICK);
-    b.pillar(9, 180, 6, 22, 1.2f, T_STONEBRICK);
-    b.brazier(V3(-9, 22, 180), 1, false, 6.0f);
-    b.brazier(V3(9, 22, 180), 1, false, 6.0f);
+    {
+        std::vector<V3> tp; std::vector<float> ty;
+        for (V3 p : {V3(-9, 22, 173), V3(9, 22, 173), V3(-9, 22, 182), V3(9, 22, 182)}) {
+            b.pillar(p.x, p.z, 6, 22, 1.2f, T_STONEBRICK);
+            tp.push_back(p); ty.push_back(p.x < 0 ? PI / 2 : -PI / 2);
+        }
+        addPuzzle(b, AABB(V3(-3, 17, 167), V3(3, 23, 186)), tp, ty, 4, 7, 1, "clock.g2", -1, V3());
+    }
     b.gate(AABB(V3(-3, 18, 186), V3(3, 22.5f, 186.6f)), 1, "clock.g2");
     b.wall(-10, 186, -3, 186.6f, 18, 22.5f, T_STONEBRICK); b.wall(3, 186, 10, 186.6f, 18, 22.5f, T_STONEBRICK);
-    b.hint(AABB(V3(-3, 17, 168), V3(3, 22, 186)), "Two timed braziers. Throw, recall, throw - quickly!", "", "clock.g2");
+    b.hint(AABB(V3(-3, 17, 167), V3(3, 22, 186)), "GL1TCH hacked the gate! WATCH the order the terminals flash, then BURN them in that order [{THROW}].", "", "clock.g2");
+    b.enemy(E_DRONE, V3(0, 18, 170));
+    // GL1TCH's server room (optional): crack it for the FIREWALL power
+    b.solid(AABB(V3(-15, 12, 186.6f), V3(-3, 18, 198.5f)), T_TILEFLOOR, T_TILEFLOOR);
+    b.wall(-15.6f, 186, -10, 186.6f, 18, 22.5f, T_STONEBRICK); b.wall(-15.6f, 186.6f, -15, 198.5f, 18, 22.5f, T_STONEBRICK);
+    b.wall(-15.6f, 198.5f, -10, 199.1f, 18, 22.5f, T_STONEBRICK);
+    {
+        V3 c(-8, 18, 192.5f);
+        std::vector<V3> tp; std::vector<float> ty;
+        for (int k = 0; k < 5; k++) {
+            float a = (120 + k * 30) * PI / 180;
+            V3 p = c + V3(std::cos(a) * 5, 0, std::sin(a) * 5);
+            tp.push_back(p); ty.push_back(std::atan2(c.x - p.x, c.z - p.z));
+        }
+        addPuzzle(b, AABB(V3(-15, 17, 187), V3(-3.2f, 23, 198)), tp, ty, 5, 21, -1, "clock.servers", 1, c + V3(0, 0.9f, 0));
+        for (int k = 0; k < 4; k++) {  // racks of humming servers along the walls
+            V3 r(-14.4f, 18, 188.5f + k * 2.8f);
+            b.solid(AABB(r + V3(-0.5f, 0, -1), r + V3(0.5f, 3.6f, 1)), T_METAL, T_METAL);
+            L.decor.emis = 1.3f; L.decor.color = hexColor(0x60ff90);
+            L.decor.cube(M4::translate(r + V3(0.52f, 2.0f, 0)) * M4::scale(V3(0.04f, 2.6f, 1.6f)), T_CODE);
+            L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
+        }
+        b.light(c + V3(0, 3, 0), 10, hexColor(0x40ff80), 0.9f);
+        b.emitter(AABB(V3(-15, 18, 187), V3(-3, 23, 198)), 5, 10);
+        b.hint(AABB(V3(-15, 17, 187), V3(-3.2f, 23, 198)), "GL1TCH's server room. Crack all five terminals in order - wrong moves call his FIREWALL DRONES.", "", "clock.servers");
+    }
     b.lantern(V3(2, 18, 190), b.spawn(V3(0.5f, 18, 191), 0));
     // sealed alcove with a shard (needs Bloom)
     b.solid(AABB(V3(3, 12, 191), V3(10, 18, 197)), T_ROCK, T_GRASS);
@@ -465,6 +560,25 @@ void buildClock(Level& L, Game&) {
     b.hint(AABB(V3(-18, 17, 200), V3(18, 26, 236)), "BURN the 3 glowing SERVERS to crash GL1TCH's firewall, then BURN GL1TCH!", "", "boss.1");
 
     b.emitter(AABB(V3(-15, 1, 0), V3(15, 12, 200)), 0, 14);
+    // GL1TCH's hack has crept into the wood: screens of scrolling code bolted to rocks and trunks, and falling data
+    struct Scr { V3 p; float yaw, w, h; } scr[] = {{V3(-4.5f, 2.6f, 35.9f), 0, 3, 2}, {V3(5.5f, 3, 71.9f), 0, 2.5f, 2}, {V3(-6, 9, 103.9f), 0, 2.2f, 1.6f}, {V3(4.6f, 12, 112), PI / 2, 2.4f, 2},
+                                                   {V3(-13.9f, 20.5f, 145), PI / 2, 3, 2}, {V3(13.9f, 20.5f, 155), PI / 2, 3, 2}, {V3(-17.9f, 21.5f, 210), PI / 2, 4, 2.5f}, {V3(17.9f, 21.5f, 226), PI / 2, 4, 2.5f}};
+    for (auto& sc : scr) {
+        M4 m = M4::translate(sc.p) * M4::rotY(sc.yaw);
+        L.decor.cube(m * M4::scale(V3(sc.w + 0.3f, sc.h + 0.3f, 0.12f)), T_METAL);
+        L.decor.emis = 1.4f; L.decor.color = hexColor(0x60ff90);
+        L.decor.cube(m * M4::translate(V3(0, 0, -0.05f)) * M4::scale(V3(sc.w, sc.h, 0.06f)), T_CODE, 2);
+        L.decor.cube(m * M4::translate(V3(0, 0, 0.05f)) * M4::scale(V3(sc.w, sc.h, 0.06f)), T_CODE, 2);
+        L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
+        b.light(sc.p, 5, hexColor(0x40ff80), 0.6f);
+    }
+    b.emitter(AABB(V3(-18, 18, 200), V3(18, 34, 236)), 5, 14);
+    b.emitter(AABB(V3(-10, 18, 166), V3(10, 30, 200)), 5, 6);
+    b.enemy(E_VIRUS, V3(-6, 18.2f, 143)); b.enemy(E_VIRUS, V3(6, 18.2f, 143));
+    // a hidden branch off the crown (secret)
+    b.solid(AABB(V3(-13, 25.5f, 104), V3(-9, 26, 108)), T_PLANK, T_PLANK);
+    b.anchor(V3(-10.5f, 27.4f, 106.5f));
+    b.pickup(PK_HAT, V3(-11.6f, 26.9f, 105.4f), 6, "hat.6");
     b.urns({V3(5, 0, -4), V3(-5, 0, 10), V3(-6, 0, 30), V3(-5, 6, 45), V3(5, 6, 52), V3(-6, 6, 80), V3(7, 6, 88), V3(-8, 6, 101), V3(-11.5f, 18, 115), V3(-11.5f, 18, 125), V3(-10, 18, 140), V3(10, 18, 150), V3(2, 18, 172), V3(-2, 18, 195)}, 1);
     b.enemy(E_GLOOMLING, V3(0, 6.2f, 46)); b.enemy(E_GLOOMLING, V3(3, 6.2f, 50)); b.enemy(E_GLOOMLING, V3(-6, 6.2f, 98)); b.enemy(E_MOTH, V3(-11, 18, 122));
     b.emitter(AABB(V3(-20, -10, 0), V3(20, -2, 240)), 2, 4);
@@ -504,7 +618,14 @@ void buildVaults(Level& L, Game&) {
 
     // --- the knight hall
     b.slab(-10, 30, 10, 70, 0, T_TILEFLOOR, T_STONEBRICK, 3);
-    b.wall(-11, 30, -10, 70, 0, 10, T_STONEBRICK); b.wall(10, 30, 11, 70, 0, 10, T_STONEBRICK);
+    b.wall(-11, 30, -10, 44.5f, 0, 10, T_STONEBRICK); b.wall(-11, 48.5f, -10, 70, 0, 10, T_STONEBRICK); b.wall(10, 30, 11, 70, 0, 10, T_STONEBRICK);
+    b.wall(-11, 44.5f, -10, 48.5f, 4, 10, T_STONEBRICK);
+    b.seal(AABB(V3(-10.9f, 0, 44.5f), V3(-10.1f, 4, 48.5f)), "vaults.hatseal");
+    b.slab(-16, 43.9f, -11, 49.1f, 0, T_TILEFLOOR, T_STONEBRICK, 3);
+    b.wall(-16.6f, 43.9f, -16, 49.1f, 0, 4, T_STONEBRICK); b.wall(-16.6f, 43.3f, -11, 43.9f, 0, 4, T_STONEBRICK); b.wall(-16.6f, 49.1f, -11, 49.7f, 0, 4, T_STONEBRICK);
+    ceil(-16.6f, 43.3f, -10, 49.7f, 4);
+    b.pickup(PK_HAT, V3(-13.5f, 0.9f, 46.5f), 7, "hat.7");
+    b.candles(V3(-15.3f, 0, 44.6f), 3); b.bones(V3(-12, 0, 48.4f));
     b.wall(-10, 29.4f, -4, 30, 0, 10, T_STONEBRICK); b.wall(4, 29.4f, 10, 30, 0, 10, T_STONEBRICK);
     ceil(-11, 29.4f, 11, 70, 10);
     for (int z = 38; z <= 62; z += 8) { b.pillar(-6, (float)z, 0, 10, 0.8f, T_MARBLE); b.pillar(6, (float)z, 0, 10, 0.8f, T_MARBLE); }
@@ -645,6 +766,9 @@ void buildSpire(Level& L, Game&) {
     b.solid(AABB(V3(-3, 21.5f, 64), V3(3, 22, 70)), T_MARBLE, T_MARBLE);
     b.anchor(V3(0, 24.2f, 67));
     b.anchor(V3(0, 28.2f, 74.5f));
+    b.solid(AABB(V3(-8, 17.5f, 55), V3(-4.5f, 18, 59)), T_MARBLE, T_MARBLE);  // a lonely ledge (secret)
+    b.anchor(V3(-6.2f, 19.8f, 57));
+    b.pickup(PK_HAT, V3(-7.2f, 18.9f, 57.6f), 9, "hat.9");
     b.enemy(E_MOTH, V3(4, 14, 58)); b.enemy(E_MOTH, V3(4, 18, 64)); b.enemy(E_MOTH, V3(-3, 22, 70));
     b.hint(AABB(V3(-10, 5, 44), V3(10, 9, 50)), "Up the outside of the Spire, hook by hook. Don't look down.");
     L.decor.cylinder(M4::translate(V3(-14, 30, 60)) * M4::scale(V3(10, 80, 10)), T_STONEBRICK, 12, true, 20);  // tower core beside the climb
@@ -768,6 +892,9 @@ void buildJunk(Level& L, Game&) {
     neon(b, V3(9.5f, 3.5f, 44), pink); neon(b, V3(-9.5f, 3.5f, 78), pink);
     b.enemy(E_MOTH, V3(-3, 0, 76)); b.enemy(E_MOTH, V3(3, 0, 80));
     b.pickup(PK_SHARD, V3(-8.5f, 0.9f, 82), 2, "shard.junk0");  // reward for exploring the corner
+    b.solid(AABB(V3(7, 0, 71.5f), V3(9.6f, 4.6f, 74.5f)), T_RUST, T_METAL);  // scrap tower (secret on top)
+    b.anchor(V3(8.3f, 6.6f, 73));
+    b.pickup(PK_HAT, V3(8.3f, 5.5f, 73.6f), 8, "hat.8");
 
     // --- the crusher arena: MEGA-BOT 3000
     b.slab(-14, 84, 14, 120, 0, T_TILEFLOOR, T_RUST, 3);

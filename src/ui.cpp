@@ -15,7 +15,7 @@ static std::string fmtTime(float s) {
 }
 
 static std::string expandKeys(const Game& g, std::string s) {
-    static const struct { const char* tok; int a; } T[] = {{"{THROW}", A_THROW}, {"{WARP}", A_WARP}, {"{BLOOM}", A_BLOOM}, {"{JUMP}", A_JUMP}, {"{DASH}", A_DASH}, {"{INTERACT}", A_INTERACT}, {"{JOURNAL}", A_JOURNAL}};
+    static const struct { const char* tok; int a; } T[] = {{"{THROW}", A_THROW}, {"{WARP}", A_WARP}, {"{BLOOM}", A_BLOOM}, {"{JUMP}", A_JUMP}, {"{DASH}", A_DASH}, {"{INTERACT}", A_INTERACT}, {"{JOURNAL}", A_JOURNAL}, {"{GRAPPLE}", A_GRAPPLE}, {"{FIREWALL}", A_FIREWALL}, {"{OVERCLOCK}", A_OVERCLOCK}};
     for (auto& t : T) {
         size_t p;
         while ((p = s.find(t.tok)) != std::string::npos) s.replace(p, strlen(t.tok), bindingName(g.settings.keys[t.a]));
@@ -309,6 +309,9 @@ void Game::drawHUD() {
     abil("Warp", A_WARP, ability("warp"), flame.warpCd, 0.3f, thrown);
     abil("Bloom", A_BLOOM, ability("bloom"), flame.bloomCd, 2.5f, false);
     abil("Dash", A_DASH, true, pl.dashCd, 0.55f, false);
+    abil("Grapple", A_GRAPPLE, ability("grapple"), 0, 1, grappling);
+    abil("Firewall", A_FIREWALL, ability("firewall"), fwCd, 8.5f, !firewalls.empty());
+    abil(ocT > 0 ? "OVERCLOCK!" : (ocCharge >= 1 ? "Overclock READY" : "Overclock"), A_OVERCLOCK, ability("overclock"), ocT > 0 ? 0.f : 1 - ocCharge, 1, ocT > 0 || ocCharge >= 1);
     // crosshair
     if (dialog.empty() && !pl.dead) {
         float cx = W / 2, cy = H / 2;
@@ -370,8 +373,10 @@ void Game::drawHUD() {
     // interaction prompt
     for (auto& tk : lv.talkers) {
         if (len(tk.pos - pl.pos) < 3.0f && dialog.empty()) {
-            static const char* names[] = {"Talk to Marrow", "Inspect the pedestals", "", "Sprocket's Robot Friends", "Talk to Gil", "Talk to Tilda", "Talk to Mort", "Talk to Rusty", "Talk to Pip", "Blueprint Table (build)", "Bramble's Supplies"};
-            std::string what = names[std::max(0, std::min(10, tk.who))];
+            static const char* names[] = {"Talk to Marrow", "Inspect the pedestals", "", "Sprocket's Robot Friends", "Talk to Gil", "Talk to Tilda", "Talk to Mort", "Talk to Rusty", "Talk to Pip", "Blueprint Table (build)", "Bramble's Supplies",
+                                          "Talk to Mira", "Pet Whiskers", "Talk to Old Fenn", "Candle race with Flick", "Wardrobe mirror (change hat)", "Fish here"};
+            if (tk.who == 16 && fishState > 0) continue;
+            std::string what = names[std::max(0, std::min(16, tk.who))];
             std::string p = "[" + bindingName(settings.keys[A_INTERACT]) + "] " + what;
             float sx, sy;
             if (R->project(tk.pos + V3(0, 2.8f, 0), sx, sy)) {
@@ -407,8 +412,58 @@ void Game::drawHUD() {
         R->uiTextCentered(W / 2, H * 0.3f, toast, s * 2.5f, V4(1, 0.82f, 0.45f, a));
         R->uiTextCentered(W / 2, H * 0.3f + 24 * s, toastSub, s * 1.2f, V4(0.95f, 0.9f, 0.85f, a));
     }
+    drawExtrasHUD();
     // death
     if (pl.dead && pl.deadT > 0.4f) R->uiTextCentered(W / 2, H * 0.45f, "your flame gutters...", s * 2, V4(1, 0.6f, 0.4f, std::min(1.f, pl.deadT - 0.4f)));
+}
+
+void Game::drawExtrasHUD() {
+    float s = (float)R->uiScale();
+    float W = (float)R->winW, H = (float)R->winH;
+    float t = time;
+    std::string ik = "[" + bindingName(settings.keys[A_INTERACT]) + "]";
+    // overclock
+    if (ocT > 0) {
+        R->uiTextCentered(W / 2, H * 0.14f, "OVERCLOCK", s * 2, V4(0.4f, 0.9f, 1, 0.6f + 0.4f * std::sin(t * 12)));
+        R->uiRect(W / 2 - 40 * s, H * 0.14f + 18 * s, 80 * s * clampf(ocT / 4.5f, 0, 1), 2 * s, C4(0x60e0ff));
+    }
+    // Lumen City: alarm and the helipad countdown
+    if (lv.id == LV_CITY) {
+        float y = 44 * s;
+        if (alarmT > 0) {
+            bool on = std::fmod(t * 3, 1.f) < 0.6f;
+            R->uiTextCentered(W / 2, y, lv.holdout.active ? "!! FBI ASSAULT !!" : "!! SPOTTED !!", s * 1.6f, on ? C4(0xff4040) : C4(0x4060ff));
+        } else R->uiTextCentered(W / 2, y, "hidden", s, COL_DIM);
+        if (lv.hasHoldout && lv.holdout.active) {
+            char b[64]; snprintf(b, sizeof(b), "SPROCKET'S CHOPPER ETA  %02d", std::max(0, (int)std::ceil(lv.holdout.dur - lv.holdout.t)));
+            R->uiTextCentered(W / 2, y + 16 * s, b, s * 1.4f, C4(0x60e0ff));
+        }
+    }
+    // candle race
+    if (raceIdx >= 0) {
+        char b[96]; snprintf(b, sizeof(b), "CANDLE RACE   ring %d/%d   %.1fs", raceIdx + 1, (int)lv.race.size(), raceT);
+        R->uiTextCentered(W / 2, 44 * s, b, s * 1.4f, C4(0xffd040));
+    }
+    // hacking puzzles
+    for (auto& P : lv.puzzles) {
+        if (!P.zone.contains(pl.pos + V3(0, 0.5f, 0)) || P.state == 0 || P.state == 3) continue;
+        std::string m = P.state == 1 ? "WATCH THE SEQUENCE..." : (P.state == 2 ? "BURN IN ORDER  " + std::to_string(P.progress) + "/" + std::to_string(P.seq.size()) : "ACCESS DENIED - replaying");
+        R->uiTextCentered(W / 2, 58 * s, m, s * 1.4f, P.state == 4 ? C4(0xff4040) : C4(0x60ff90));
+        for (int k = 0; k < (int)P.seq.size(); k++) R->uiRect(W / 2 - P.seq.size() * 5 * s + k * 10 * s, 72 * s, 8 * s, 3 * s, k < P.progress ? C4(0x60ff90) : C4(0x203028));
+        break;
+    }
+    // fishing
+    if (fishState > 0) {
+        float bw = 160 * s, bx = W / 2 - bw / 2, by = H * 0.72f;
+        if (fishState == 1) R->uiTextCentered(W / 2, by, "Waiting for a bite...   (" + ik + " reels in)", s, COL_TEXT);
+        else if (fishState == 2) R->uiTextCentered(W / 2, by - 6 * s, "!! BITE !!  PRESS " + ik, s * 2, std::fmod(t * 8, 1.f) < 0.5f ? C4(0xfff060) : C4(0xff8040));
+        else {
+            R->uiTextCentered(W / 2, by - 12 * s, "Press " + ik + " when the needle is in the GREEN", s, COL_TEXT);
+            R->uiFrame(bx, by, bw, 10 * s, C4(0x0c0a14, 0.9f), COL_BORDER);
+            R->uiRect(bx + bw * (fishZone - fishZoneW / 2), by + s, bw * fishZoneW, 8 * s, C4(0x40c060));
+            R->uiRect(bx + bw * fishNeedle - s, by - 2 * s, 2 * s, 14 * s, C4(0xffffff));
+        }
+    }
 }
 
 // a shout-out to a friend's game, on the title, credits and victory screens
@@ -484,7 +539,7 @@ void Game::drawUI() {
         R->uiTextCentered(W / 2, H * 0.16f, "WICKLIGHT", ls, V4(1, 0.7f * flick, 0.3f * flick, 1), false);
         R->uiTextCentered(W / 2, H * 0.16f + 9 * ls, "your head is the last flame in the world", s, C4(0xd0c0b0));
         if (saveCorrupt) R->uiTextCentered(W / 2, H - 22 * s, "Your save file was damaged and has been set aside (save.dat.corrupt).", s, C4(0xff8060));
-        R->uiText(6 * s, H - 10 * s, "v1.0.1  native Linux build", s, COL_DIM);
+        R->uiText(6 * s, H - 10 * s, "v1.1.0  native Linux build", s, COL_DIM);
         drawFriendPlug(R, W, H, s, time);
     }
     switch (screen) {
@@ -519,7 +574,7 @@ void Game::drawUI() {
             R->uiRect(0, 0, W, H, V4(0, 0, 0, 0.6f));
             drawMenu("CONTROLS", menuItems(*this), menuSel, H * 0.1f);
             R->uiTextCentered(W / 2, H - 22 * s, rebinding ? "Press a key or mouse button (Esc cancels)" : "Enter: rebind   Esc: back", s, COL_DIM);
-            R->uiTextCentered(W / 2, H - 12 * s, "Gamepad: L-stick move, R-stick look, A jump, B dash, RT throw, LT warp, RB bloom, X interact", s, COL_DIM);
+            R->uiTextCentered(W / 2, H - 12 * s, "Gamepad: L-stick move, R-stick look, A jump, B dash, RT throw, LT warp, RB bloom, X interact, Y grapple, L3 firewall, R3 overclock", s, COL_DIM);
             break;
         case SC_JOURNAL: {
             R->uiRect(0, 0, W, H, V4(0.02f, 0.01f, 0.03f, 0.88f));
@@ -531,7 +586,10 @@ void Game::drawUI() {
                 {"Dash", "A short burst of speed. You can't be hurt mid-dash.", true},
                 {"Warp", "Step into your thrown flame. Hooks catch it.", ability("warp")},
                 {"Bloom", "Detonate your flame wherever it is.", ability("bloom")},
-                {"Sunflare", "Hold to charge: farther, triple damage, breaks shields, shrouds, crystal.", ability("sunflare")}};
+                {"Sunflare", "Hold to charge: farther, triple damage, breaks shields, shrouds, crystal.", ability("sunflare")},
+                {"Overclock", "Hits charge it. When full, slow the whole world down for a few seconds.", ability("overclock")},
+                {"Firewall", "Drop a wall of fire: enemies can't cross it, shots melt in it.", ability("firewall")},
+                {"Ember Grapple", "Flame on a hook + hold Grapple: swing on a rope of fire, let go to fling.", ability("grapple")}};
             for (auto& p : pw) {
                 R->uiText(x, y, p.on ? p.n : "???", s, p.on ? COL_TEXT : COL_DIM);
                 if (p.on) R->uiText(x + 90 * s, y, p.d, s, COL_DIM);
@@ -541,7 +599,18 @@ void Game::drawUI() {
             char buf[128];
             snprintf(buf, sizeof(buf), "Beacon-Hearts %d/4    Ember Shards %d/7 (max flame %d)    Memory Candles %d/10    Deaths %d    Time %s",
                      countFlags("heart."), countFlags("shard."), (int)maxHp(), countFlags("candle."), save.deaths, fmtTime(save.playTime).c_str());
-            R->uiText(x, y, wrap(R, buf, s, W - 40 * s), s, COL_TEXT); y += 24 * s;
+            R->uiText(x, y, wrap(R, buf, s, W - 40 * s), s, COL_TEXT); y += 12 * s;
+            {
+                int hats = 0; for (int h = 1; h <= 10; h++) if (has("hat." + std::to_string(h))) hats++;
+                int fish = 0; for (int k = 0; k < 4; k++) if (has("fish." + std::to_string(k))) fish++;
+                std::string side = "Hats " + std::to_string(hats) + "/10   Fish species " + std::to_string(fish) + "/4   ";
+                side += has("quest.catdone") ? "[x] Mira's cat   " : (has("quest.cat") ? "[ ] Mira's cat   " : "");
+                side += has("quest.fenndone") ? "[x] Fenn's braziers   " : (has("quest.fenn") ? "[ ] Fenn's braziers   " : "");
+                side += has("quest.carpdone") ? "[x] Golden Carp   " : (has("quest.carp") ? "[ ] Golden Carp   " : "");
+                side += has("fbi.done") ? "[x] Lumen City" : (has("boss.1") ? "[ ] Lumen City (east bridge)" : "");
+                if (save.raceBest > 0) { char rb[48]; snprintf(rb, sizeof(rb), "   Race best %.1fs", save.raceBest); side += rb; }
+                R->uiText(x, y, wrap(R, side, s, W - 40 * s), s, COL_DIM); y += 14 * s;
+            }
             R->uiText(x, y, "MEMORIES", s * 1.2f, COL_HI); y += 14 * s;
             std::vector<int> found;
             for (int i = 0; i < 10; i++) if (has("candle." + std::to_string(i))) found.push_back(i);
@@ -599,6 +668,7 @@ std::string Game::currentObjective() const {
             if (hearts == 1 && !has("boss.1")) return "Go NORTH: throw your flame across the broken bridge, then warp";
             if (hearts == 2 && !has("boss.2")) return "Go EAST: Bloom the red wax seal on the mausoleum";
             if (hearts == 3 && !has("boss.4")) return "Go SOUTH-WEST to the Junkyard gate (tip: buy a robot friend at Sprocket's stall first!)";
+            if (has("boss.1") && !has("talk.fbi")) return "Something's going on - talk to Marrow in his workshop";
             if (!has("hub.spire")) return "Place the Beacon-Hearts at the pedestals by the Spire door [" + bindingName(settings.keys[A_INTERACT]) + "]";
             return "Enter the Lighthouse Spire (door on its south side)";
         case LV_WHARF:
@@ -613,6 +683,12 @@ std::string Game::currentObjective() const {
         case LV_SPIRE: return "Climb the Spire and relight the Great Lamp";
         case LV_ENDLESS: return "Reach the portal at the end of Depth " + std::to_string(save.endlessDepth) + (save.endlessDepth % 5 == 0 ? " - BOSS DEPTH!" : "");
         case LV_HOME: return !has("npc.10") ? "Talk to Bramble the beaver for a starter kit [E]" : (!has("isle.mined") ? "Hold the throw button on a block to mine it" : (!has("isle.placed") ? "Place a block: pick it with [1]-[9], then the warp button" : (!has("isle.crafted") ? "Open crafting and make some planks" : "Build anything! Survive the night - or sleep in a bed")));
+        case LV_CITY:
+            if (has("pw.grapple")) return "Climb into Sprocket's chopper (the glowing door on the helipad)";
+            if (has("city.holdout")) return "Grab Sprocket's package on the helipad";
+            if (has("city.arena")) return "Cross the bridge to the HELIPAD and hold out until Sprocket arrives";
+            if (has("city.g1")) return "Climb the fire escapes to the tower roof";
+            return "Get past the FBI to the helipad at the north end - avoid the searchlights!";
         case LV_JUNK:
             if (has("boss.4")) return has("heart.4") ? "Walk through the glowing door back to the Hollow" : "Take the Beacon-Heart";
             return "Get through the Junkyard and dethrone KING RATTLETRAP";
@@ -677,7 +753,8 @@ void Game::drawHowTo() {
         "  It burns enemies going OUT and coming BACK, and lights braziers.\n"
         "  " + K(A_WARP) + " WARP: teleport to your thrown flame (earned in the Wharf).\n"
         "  " + K(A_BLOOM) + " BLOOM: explode the flame wherever it is (earned in the Clockwood).\n"
-        "  Hold " + K(A_THROW) + " to charge a SUNFLARE (earned in the Vaults).\n\n"
+        "  Hold " + K(A_THROW) + " to charge a SUNFLARE (earned in the Vaults).\n"
+        "  " + K(A_OVERCLOCK) + " OVERCLOCK slows time (charged by hits)   " + K(A_FIREWALL) + " FIREWALL   " + K(A_GRAPPLE) + " hold to GRAPPLE a hooked flame.\n\n"
         "MOVING\n"
         "  " + bindingName(settings.keys[A_FWD]) + bindingName(settings.keys[A_LEFT]) + bindingName(settings.keys[A_BACK]) + bindingName(settings.keys[A_RIGHT]) +
         " move   mouse look   " + K(A_JUMP) + " jump   " + K(A_DASH) + " dash (invulnerable)\n"
@@ -686,7 +763,10 @@ void Game::drawHowTo() {
         "  Brass hooks catch your flame - throw at one and warp up to it.\n"
         "  Knights block from the front: throw past them, then recall into their backs.\n"
         "  Lanterns restore your flame and save. Falling in water only costs one candle.\n"
-        "  Bosses have a moment of weakness - watch for the glow.";
+        "  Bosses have a moment of weakness - watch for the glow.\n"
+        "  Hacked terminals flash a sequence: burn them in the same order.\n"
+        "  Side jobs: Mira's cat, Old Fenn's braziers, Flick's candle race, fishing with Gil.\n"
+        "  Hats hide in secret corners - wear them via the mirror in Marrow's workshop.";
     R->uiText(20 * s, 34 * s, wrap(R, t, s, W - 40 * s), s, COL_TEXT);
     R->uiTextCentered(W / 2, H - 12 * s, "Press Esc or Enter to go back", s, COL_DIM);
 }

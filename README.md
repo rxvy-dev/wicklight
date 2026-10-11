@@ -28,6 +28,15 @@ You play **Wick**, a small wax automaton lit by Marrow, the last Lamplighter. Yo
 | **Warp** | beat the Drowned Bellwether | Step into your thrown flame: across gaps, up cliffs, onto brass hooks. |
 | **Bloom** | beat GL1TCH the hacker | Detonate the flame wherever it is. Melts wax seals, lights groups of braziers, clears swarms. |
 | **Sunflare** | beat the Veil Matron | Hold to charge: longer range, triple damage. Shatters shields, crystal and shadow shrouds. |
+| **Overclock** | beat GL1TCH the hacker | Every hit you land charges it. When it's full, slow the whole world to a crawl for a few seconds while you keep full speed. |
+| **Firewall** | crack GL1TCH's server room (Clockwood, optional) | Drop a wall of fire. Enemies can't walk through it and burn while they try, shots melt in it, and it lights braziers. |
+| **Ember Grapple** | survive Lumen City (the FBI level) | Throw your flame onto a brass hook and hold Grapple: a rope of fire pulls you in. Steer to swing, let go to fling yourself. |
+
+**New in 1.1:**
+- **Lumen City, "Wick is wanted":** after GL1TCH, the FBI thinks Wick is the hacker. Sneak and fight through a night city: sweeping searchlights call in backup, agents with flashlights spot you and fire, a hacked police barricade, a climb up a tower's fire escapes, a rooftop ambush, and a 30-second last stand on a helipad until Sprocket's rescue chopper lands. Across the east bridge from the plaza, open once GL1TCH is beaten.
+- **A better hacker level:** GL1TCH's gates are now **hacking puzzles**: terminals flash a sequence, and you burn them in the same order. A wrong guess calls in **firewall drones**. The Clockwood is full of code screens and falling data, the screen glitches, and **viruses** (green bugs that copy themselves when burned) crawl around. GL1TCH himself now teleports between his servers, fires fans of code bolts, sends **fake Wicks** that run at you and explode, and sweeps glitch lines across the arena in turbo mode.
+- **Side jobs in the Hollow:** find Mira's cat Whiskers (he's stuck in a treehouse), relight Old Fenn's six street braziers, race Flick through 12 rings of candlelight (bronze, silver, gold), and catch Gil's **Golden Carp** with the new **fishing** minigame at the Wharf (4 kinds of fish).
+- **Hats:** 10 cosmetic hats. Some are quest rewards, the rest hide in secret spots in every region. Swap them at the mirror in Marrow's workshop.
 
 **Campaign:** the hub, Lumen Hollow, then four regions, each ending in a boss fight: the Sunken Wharf, the Clockwood (GL1TCH, a hacker from across the world), the Ashen Vaults and the Junkyard of Lost Machines (King Rattletrap). Their four Beacon-Hearts open the Lighthouse Spire, where the final fight against the Hush leads to a full ending. After the credits you can keep exploring.
 **Embers, combos and upgrades:** enemies and breakable urns drop embers. Chain hits without getting hurt to build a combo, which multiplies your embers up to x4. Spend them at any lit lantern (walk up and press E):
@@ -94,6 +103,10 @@ There aren't enough embers in one clean run to buy everything, so playing well p
 - Moths: they smother a thrown flame.
 - Hushknights: shielded and must be hit from behind.
 - Wraiths: invisible unless your flame is near.
+- Viruses: green bugs that split in two when burned.
+- Firewall drones: hover around you and fire straight code bolts (your flame burns the bolts).
+- Fake Wicks: GL1TCH's decoys. They run at you and explode.
+- FBI agents: patrol with flashlights, chase you once they spot you, and fire after a red laser warning.
 
 ## Install
 
@@ -181,6 +194,9 @@ Overrides: `GH_USER=... REPO=... ./publish.sh --private`.
 | Throw / Recall (hold to charge Sunflare) | Left mouse | RT |
 | Warp | Right mouse | LT |
 | Bloom | Q | RB |
+| Ember Grapple (hold) | F | Y |
+| Firewall | R | Left stick click |
+| Overclock | C | Right stick click |
 | Interact / talk | E | X |
 | Journal | Tab | Back |
 | Pause | Esc | Start |
@@ -195,7 +211,8 @@ All keys can be rebound in **Settings → Controls**. Settings also cover UI siz
 1. **Hub:** talk to Marrow, then take the west steps to the **Sunken Wharf**. Learn to throw and recall, cross the stepping stones, and light the two timed braziers quickly.
    - **Boss, the Drowned Bellwether:** jump the shockwave rings. When it tolls and tilts, throw into its glowing core.
 2. **Clockwood:** go north across the broken bridge by throwing, then warping. Climb the great tree hook by hook.
-   - **Boss, GL1TCH the hacker** (from across the world, paid by the Hush): throw your flame into his 3 glowing SERVERS. Two hits each, or one Bloom. With all three burned, his FIREWALL crashes: burn him while he reboots. Destroy the green data packets with your flame, and step out of the red DDoS markers.
+   - **Hacked terminals:** watch the order the screens flash (each has its own colour stripe and sound), then throw your flame into them in that order. A wrong one sends firewall drones and replays the sequence. Left of the lantern after the terminals is GL1TCH's server room: a 5-terminal puzzle that gives you **Firewall**.
+   - **Boss, GL1TCH the hacker** (from across the world, paid by the Hush): throw your flame into his 3 glowing SERVERS. Two hits each, or one Bloom. With all three burned, his FIREWALL crashes: burn him while he reboots. Destroy the green data packets and code bolts with your flame, step out of the green DDoS markers, and burn fake Wicks before they reach you. Beating him also gives you **Overclock**.
 3. **Ashen Vaults:** go east and Bloom the wax seal. Knights must be hit from behind, and Bloom clears moth swarms.
    - **Boss, the Veil Matron:** light all four braziers. Bloom between each pair to light two at once. She falls dazzled: hit her then.
 4. **Junkyard** (south-west gate, after the Vaults): buy a robot friend first! Burn rats in packs. Get behind MEGA-BOT 3000 and hit its glowing vents. Light the three furnaces quickly.
@@ -203,7 +220,11 @@ All keys can be rebound in **Settings → Controls**. Settings also cover UI siz
 5. **Spire:** set the four hearts in the pedestals at the Spire door. Wraiths show only near your flame. Shatter the crystal with a Sunflare, climb the outside, and ride the lift to the summit.
    - **Boss, the Hush:** a Sunflare burns the shroud off a slammed-down hand, so you can hit its eye. Then Bloom the three sealed wicks to open the Lamp and strike the heart. When it flees, finish it.
 
+6. **Lumen City** (any time after GL1TCH; the bridge east of the plaza): keep out of the searchlight pools and burn agents from behind. Hack the barricade's three traffic boxes, then throw-and-warp up the tower's fire escapes. Clear the rooftop, cross the bridge, and survive 30 seconds on the helipad (Firewall and Overclock help a lot). Sprocket brings the **Ember Grapple**.
+
 Lanterns are checkpoints: they restore your flame and save. Each region entrance also saves.
+
+**Side jobs:** Mira (west of the plaza) lost her cat: throw to the hook by the treehouse and warp up. Old Fenn (north of the Spire) wants six street braziers lit around the edge of the Hollow. Flick (next to Fenn) runs the candle race: dash a lot, gold is under 14 seconds. Gil asks for the Golden Carp once you've met him: use the fishing posts on the Wharf docks, press E when it bites, then again when the needle is in the green.
 
 **After (or during) the campaign:** take the dark portal east of the Spire into the Endless Dark. Falling costs 1 wax and puts you back on the last ledge you stood on, so take your time on the stepping stones. Clear 10 depths to unlock Wick's Island through the portal west of the Spire. There, talk to Bramble for a starter kit, put your bed down before the first night, and dig: the caves under the hills are full of ore.
 

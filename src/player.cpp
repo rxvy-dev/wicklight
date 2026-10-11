@@ -188,8 +188,10 @@ void Game::updatePlayer(float dt, const InputState& in) {
         V3 diff = target - hv;
         float dl = len(diff);
         float maxD = (wl > 0.05f ? accel : (p.grounded ? 55.f : 8.f)) * dt;
+        // after a grapple swing, keep the momentum (only gentle air control)
+        if (p.flingT > 0 && !p.grounded) { maxD = (wl > 0.05f ? 9.f : 1.5f) * dt; if (lenXZ(hv) < maxSpeed) maxD = std::max(maxD, 20.f * dt); }
         if (dl > maxD) diff = diff * (maxD / dl);
-        p.vel.x += diff.x; p.vel.z += diff.z;
+        if (!grappling) { p.vel.x += diff.x; p.vel.z += diff.z; }
         // gravity
         p.vel.y -= GRAVITY * dt;
         if (p.vel.y < -32) p.vel.y = -32;
@@ -203,8 +205,10 @@ void Game::updatePlayer(float dt, const InputState& in) {
             audio::play(SFX_JUMP, 0.8f, 1.3f);
             burst(p.pos + V3(0, 0.2f, 0), hexColor(0xffa040), 14, 3, 0.08f, 3, 0.4f, 2);
         }
-        if (in.released[A_JUMP] && p.vel.y > 4) p.vel.y *= 0.55f;
+        if (in.released[A_JUMP] && p.vel.y > 4 && !grappling && p.flingT <= 0) p.vel.y *= 0.55f;
     }
+    p.flingT = p.grounded ? 0.f : std::max(0.f, p.flingT - dt);
+    updateGrapple(dt, in);
     // facing
     V3 hv(p.vel.x, 0, p.vel.z);
     if (flame.charging) p.yaw = angleApproach(p.yaw, std::atan2(aimDir.x, aimDir.z), dt * 14);
@@ -454,6 +458,10 @@ void Game::updateFlame(float dt, const InputState& in) {
                     break;
                 }
             }
+            {
+                V3 at;
+                if (!stop && hitTerminal(f.pos, np, at)) { np = at; stop = true; }
+            }
             if (wardBlocks(f.pos, np)) {
                 // the Hush's ward: the flame can't pass over a closed gate, seal or crystal
                 np = f.pos; stop = true;
@@ -533,6 +541,11 @@ void Game::updateFlame(float dt, const InputState& in) {
 // ------------------------------------------------------------------ embers, combos, urns
 void Game::addCombo(V3 at) {
     combo++;
+    if (ability("overclock") && ocT <= 0) {
+        float before = ocCharge;
+        ocCharge = std::min(1.f, ocCharge + 0.07f);
+        if (before < 1 && ocCharge >= 1) { floatText(pl.pos + V3(0, 2.2f, 0), "OVERCLOCK READY", hexColor(0x60e0ff)); audio::play(SFX_CHARGE, 0.7f, 1.6f); }
+    }
     comboT = 3.0f;
     bestCombo = std::max(bestCombo, combo);
     if (combo == 6 || combo == 12 || combo == 18 || combo == 24) {

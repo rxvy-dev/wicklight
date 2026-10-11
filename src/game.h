@@ -17,10 +17,10 @@ static const float PLAYER_H = 1.15f;
 static const float GRAVITY = 30.f;
 static const float SIM_DT = 1.f / 120.f;
 
-enum LevelId { LV_HUB = 0, LV_WHARF, LV_CLOCK, LV_VAULTS, LV_SPIRE, LV_JUNK, LV_ENDLESS, LV_HOME, LV_COUNT };
+enum LevelId { LV_HUB = 0, LV_WHARF, LV_CLOCK, LV_VAULTS, LV_SPIRE, LV_JUNK, LV_ENDLESS, LV_HOME, LV_CITY, LV_COUNT };
 
 // ------------------------------------------------------------------ input
-enum Action { A_FWD, A_BACK, A_LEFT, A_RIGHT, A_JUMP, A_DASH, A_THROW, A_WARP, A_BLOOM, A_INTERACT, A_PAUSE, A_JOURNAL, A_COUNT };
+enum Action { A_FWD, A_BACK, A_LEFT, A_RIGHT, A_JUMP, A_DASH, A_THROW, A_WARP, A_BLOOM, A_INTERACT, A_PAUSE, A_JOURNAL, A_GRAPPLE, A_FIREWALL, A_OVERCLOCK, A_COUNT };
 struct InputState {
     float moveX = 0, moveY = 0;  // -1..1 (x right, y forward)
     bool down[A_COUNT] = {};
@@ -85,7 +85,7 @@ struct GateLink { int group; int dyn; std::string flag; };
 
 struct Lantern { V3 pos; int spawn; bool lit = false; float cool = 0; };
 
-enum PickupType { PK_SHARD, PK_CANDLE, PK_HEART, PK_WAX, PK_EMBER };
+enum PickupType { PK_SHARD, PK_CANDLE, PK_HEART, PK_WAX, PK_EMBER, PK_HAT, PK_POWER };
 struct Pickup {
     PickupType type; V3 pos; int index = 0; std::string flag; bool taken = false;
     float bob = 0; V3 vel; float life = -1; int value = 1;  // life>0 for dropped wax
@@ -95,16 +95,30 @@ struct Exit { AABB zone; LevelId target; int spawn; std::string needFlag; std::s
 struct SpawnPt { V3 pos; float yaw; };
 struct Anchor { V3 pos; float pulse = 0; };
 struct Hint { AABB zone; std::string text; std::string needFlag, hideFlag; };
-struct Talker { V3 pos; float yaw; int who; };  // who: 0 Marrow, 1 pedestals, 3 Sprocket (bot shop), 4 Gil, 5 Tilda, 6 Mort, 7 Rusty, 8 Pip
+struct Talker { V3 pos; float yaw; int who; };  // who: 0 Marrow, 1 pedestals, 3 Sprocket (bot shop), 4 Gil, 5 Tilda, 6 Mort, 7 Rusty, 8 Pip,
+                                                 // 10 Bramble, 11 Mira, 12 Whiskers the cat, 13 Old Fenn, 14 Flick (race), 15 wardrobe mirror, 16 fishing spot
 struct Spinner { V3 pos; float r, thick; int axis; float speed; int tile; V3 color; float angle = 0; };
-struct Emitter { AABB zone; int kind; float rate; float acc = 0; };  // 0 fireflies, 1 embers, 2 mist, 3 ash snow, 4 motes
+struct Emitter { AABB zone; int kind; float rate; float acc = 0; };  // 0 fireflies, 1 embers, 2 mist, 3 ash snow, 4 motes, 5 data rain, 6 city rain
 
-enum EnemyType { E_GLOOMLING, E_TARBELL, E_MOTH, E_KNIGHT, E_WRAITH, E_GLOOMKING, E_MEGABOT, E_RAT };
+enum EnemyType { E_GLOOMLING, E_TARBELL, E_MOTH, E_KNIGHT, E_WRAITH, E_GLOOMKING, E_MEGABOT, E_RAT, E_VIRUS, E_DRONE, E_DECOY, E_AGENT };
 struct EnemySpawn { EnemyType type; V3 pos; int arena = -1; };
 struct Arena { AABB zone; std::vector<int> gates; std::string flag; bool active = false, done = false; };
 
 enum BossType { B_NONE = -1, B_BELLWETHER, B_WARDEN, B_MATRON, B_HUSH, B_RATKING };
 struct BossDef { BossType type = B_NONE; V3 center; float radius = 16; AABB trigger; std::vector<int> gates; std::string flag; };
+
+// hacking puzzles: terminals flash a sequence, then must be burned in that order
+struct Terminal { V3 pos; float yaw = 0; int puzzle = 0; int slot = 0; float flash = 0; int flashKind = 0; };  // flashKind 0 show, 1 right, 2 wrong
+struct HackPuzzle {
+    AABB zone; std::vector<int> seq; int group = -1; std::string flag;
+    int state = 0;      // 0 idle, 1 showing, 2 waiting for input, 3 solved, 4 failed (pause before replay)
+    float t = 0; int showIdx = 0, progress = 0, fails = 0;
+    int reward = -1;    // PK_POWER index granted when solved (-1 none)
+    V3 rewardPos;
+};
+struct Searchlight { V3 a, b; float period = 8, phase = 0, radius = 3.2f; V3 spot; };
+struct Holdout { AABB zone; float dur = 30; std::string flag; bool active = false, done = false; float t = 0, spawnT = 0; int wave = 0; std::vector<V3> spawns; V3 pad; float rescueT = 0; };
+struct RaceRing { V3 pos; float yaw; bool high = false; };
 
 struct Grid {
     float cell = 8; int nx = 0, nz = 0; V3 origin;
@@ -142,6 +156,12 @@ struct Level {
     std::vector<EnemySpawn> enemySpawns;
     std::vector<Arena> arenas;
     BossDef boss;
+    std::vector<Terminal> terminals;
+    std::vector<HackPuzzle> puzzles;
+    std::vector<Searchlight> searchlights;
+    std::vector<V3> reinforce;           // where FBI backup arrives when you're spotted
+    Holdout holdout; bool hasHoldout = false;
+    std::vector<RaceRing> race;
     Mesh staticMesh, waterMesh;
     Grid grid;
     bool meshesBuilt = false;
@@ -177,6 +197,7 @@ struct Player {
     float stepT = 0;
     float airTime = 0;
     int airJumps = 0;
+    float flingT = 0;   // after a grapple swing: keep momentum in the air
 };
 
 struct Enemy {
@@ -191,12 +212,15 @@ struct Enemy {
     int arena = -1;
     bool shield = true;         // knights
     float reveal = 0;           // wraiths
-    V3 target;
+    V3 target, target2;
     bool clinging = false;      // moth on flame
     float deathT = 0;
+    float burnT = 0;            // firewall damage tick
+    int gen = 0;                // virus: 0 splits on death, 1 doesn't
+    bool alerted = false;       // agent: has seen you
 };
 
-enum ProjType { PR_TAR, PR_GEAR, PR_ORB, PR_DUST };
+enum ProjType { PR_TAR, PR_GEAR, PR_ORB, PR_DUST, PR_CODE, PR_BULLET };
 struct Projectile { ProjType type; V3 pos, vel; float life = 5, radius = 0.4f, dmg = 1; bool gravity = false; bool alive = true; float spin = 0; };
 struct Ring { V3 c; float r = 0, speed = 8, maxR = 20, dmg = 1; bool alive = true; bool hitPlayer = false; V3 color = hexColor(0x8a5aff); };
 struct Telegraph { V3 pos; float radius, t = 0, delay = 1.2f, dmg = 1, linger = 0.25f; bool fired = false; bool alive = true; int kind = 0; };
@@ -241,6 +265,9 @@ struct SaveData {
     std::map<int, std::map<int, int>> chests;       // block index -> items
     float dayT = 0.05f;                             // 0..1 day/night cycle
     bool hasBed = false; int bedX = 0, bedY = 0, bedZ = 0;
+    int hat = 0;                                    // cosmetic hat worn by Wick (0 none)
+    int fishCaught = 0;
+    float raceBest = 0;                             // best candle-race time (0 = none)
     bool has(const std::string& f) const { return flags.count(f) > 0; }
 };
 
@@ -301,7 +328,7 @@ struct Game {
     Player pl;
     Flame flame;
     std::vector<Enemy> enemies; int nextEnemyId = 1;
-    struct PendingSpawn { EnemyType t; V3 pos; int arena; };
+    struct PendingSpawn { EnemyType t; V3 pos; int arena; int gen = 0; };
     std::vector<PendingSpawn> pendingSpawns;
     std::vector<Projectile> projs;
     std::vector<Ring> rings;
@@ -352,6 +379,30 @@ struct Game {
     void drawChest(); void updateChest(const InputState& in);
     void drawSupply(); void updateSupply(const InputState& in);
     bool craft(int recipe);
+    // --- new powers: Overclock (slow time), Firewall (a wall of fire), Ember Grapple (swing from hooks)
+    float ocCharge = 0, ocT = 0;
+    struct FireWall { V3 a, b; float t = 0, life = 6; };
+    std::vector<FireWall> firewalls; float fwCd = 0;
+    bool grappling = false; float ropeLen = 0; V3 ropeAnchor;
+    float worldScale() const { return ocT > 0 ? 0.3f : 1.f; }
+    bool fxTick(float every) const { return std::fmod(time, every) < SIM_DT; }
+    void updatePowers(float dt, const InputState& in);
+    void updateGrapple(float dt, const InputState& in);
+    void placeFirewall();
+    // --- hacking puzzles, glitch, the city, side activities
+    float glitch = 0;
+    float alarmT = 0;                       // Lumen City: spotted by a searchlight/agent
+    int raceIdx = -1; float raceT = 0;      // candle race
+    int fishState = 0, fishSpot = -1, fishKind = 0; float fishT = 0, fishWait = 0, fishNeedle = 0, fishZone = 0.5f, fishZoneW = 0.2f;
+    void updateExtras(float dt, const InputState& in);
+    bool updateFishing(float dt, const InputState& in);
+    void updatePuzzles(float dt);
+    bool hitTerminal(const V3& a, const V3& b, V3& at);
+    void updateCity(float dt);
+    void spotted(V3 where);
+    void startRace();
+    void drawExtrasHUD();
+    void cycleHat();
     // --- companion bots (bought from Sprocket with embers)
     struct BotRT { V3 pos; float timer = 0; float charge = 0; float flash = 0; };
     BotRT bots[5];

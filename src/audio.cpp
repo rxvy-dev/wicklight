@@ -77,6 +77,8 @@ const SongDef SONGS[SONG_COUNT] = {
     {76, 55, {0, 2, 4, 5, 7, 9, 11}, {0, 4, 5, 3}, 4, 2, true, true, true, true, false, true, false, false, true, W_TRI, W_SINE, 0},
     // JUNK: bouncy synth-funk in mixolydian
     {116, 48, {0, 2, 4, 5, 7, 9, 10}, {0, 6, 3, 4}, 4, 1, true, true, true, false, true, true, false, true, false, W_SQUARE, W_SAW, 0.6f},
+    // CITY: night-time spy thriller, minor with a ticking pulse and driving bass
+    {124, 50, {0, 2, 3, 5, 7, 8, 11}, {0, 0, 5, 4}, 4, 1, true, true, true, false, true, true, false, true, false, W_SQUARE, W_SAW, 0.7f},
 };
 
 int noteOf(const SongDef& s, int degree, int octave) {

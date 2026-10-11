@@ -18,6 +18,10 @@ void Game::spawnEnemy(EnemyType t, V3 pos, int arena) {
         case E_GLOOMKING: e.hp = 16; e.radius = 1.2f; e.height = 2.4f; e.cd = 2.5f; break;
         case E_MEGABOT: e.hp = 24; e.radius = 1.5f; e.height = 4.2f; e.cd = 2.0f; break;
         case E_RAT: e.hp = 1; e.radius = 0.35f; e.height = 0.5f; e.cd = 0.5f; break;
+        case E_VIRUS: e.hp = 1; e.radius = 0.38f; e.height = 0.55f; e.cd = 0.4f; break;
+        case E_DRONE: e.hp = 2; e.radius = 0.5f; e.height = 0.7f; e.cd = erng.range(1.0f, 2.2f); e.pos.y += 2.6f; e.home = e.pos; break;
+        case E_DECOY: e.hp = 1; e.radius = 0.32f; e.height = 1.2f; break;
+        case E_AGENT: e.hp = 3; e.radius = 0.4f; e.height = 1.8f; e.cd = 1.0f; e.target = pos + V3(std::sin(e.yaw) * 5, 0, std::cos(e.yaw) * 5); break;
     }
     if (lv.id == LV_ENDLESS) e.hp = std::ceil(e.hp * ((e.type == E_MEGABOT || e.type == E_GLOOMKING) ? std::min(enemyHpMul, 1.5f) : enemyHpMul));
     e.maxHp = e.hp;
@@ -86,6 +90,8 @@ void Game::damageEnemy(Enemy& e, float dmg, V3 from, bool charged) {
         if (minions < 4) { V3 p = e.pos + V3(erng.range(-2, 2), 0.5f, erng.range(-2, 2)); Enemy dummy; (void)dummy; pendingSpawns.push_back({E_GLOOMLING, p, e.arena}); }
     }
     if (e.type == E_WRAITH) { e.reveal = 1; }
+    if (e.type == E_AGENT) { e.alerted = true; if (e.state == 0) e.state = 1; }
+    if (e.type == E_VIRUS) { e.vel = kb * 5 + V3(0, 3, 0); }
     if (e.type == E_MOTH) { e.clinging = false; }
     audio::playAt(SFX_HIT, e.pos);
     burst(e.pos + V3(0, e.height * 0.5f, 0), hexColor(0xffb050), 10, 4, 0.08f, 3, 0.35f, 3);
@@ -95,13 +101,17 @@ void Game::damageEnemy(Enemy& e, float dmg, V3 from, bool charged) {
         burst(e.pos + V3(0, e.height * 0.5f, 0), hexColor(0x1a1028), 26, 4, 0.2f, 2, 0.9f, -2);
         burst(e.pos + V3(0, e.height * 0.5f, 0), hexColor(0x9a5aff), 12, 5, 0.07f, 3, 0.6f, 0);
         addShake(0.12f);
-        static const int REWARD[] = {3, 5, 2, 8, 6, 40, 60, 2};
+        static const int REWARD[] = {3, 5, 2, 8, 6, 40, 60, 2, 1, 4, 0, 6};
         int amount = (int)std::lround(REWARD[e.type] * comboMult());
         dropEmbers(e.pos, amount);
         if (e.type == E_GLOOMKING) {
             for (int k = 0; k < 3; k++) pendingSpawns.push_back({E_GLOOMLING, e.pos + V3(std::cos(k * 2.1f) * 1.5f, 0.5f, std::sin(k * 2.1f) * 1.5f), e.arena});
             showToast("GLOOM KING DEFEATED", "...and it split apart!");
         }
+        if (e.type == E_VIRUS && e.gen == 0) {  // a virus copies itself once
+            for (int k = 0; k < 2; k++) pendingSpawns.push_back({E_VIRUS, e.pos + V3(k ? 0.5f : -0.5f, 0.3f, 0), e.arena, 1});
+        }
+        if (e.type == E_DECOY) { audio::playAt(SFX_BLINK, e.pos, 1, 1.6f); glitch = std::max(glitch, 0.3f); }
         if (e.type == E_MEGABOT) { showToast("MEGA-BOT 3000 DESTROYED", "+60 embers"); addShake(0.6f); burst(e.pos + V3(0, 2, 0), hexColor(0xffa040), 60, 9, 0.15f, 3, 1.0f, 4); }
         float chance = e.type == E_MOTH ? 0.08f : (e.type == E_KNIGHT ? 0.6f : 0.25f);
         if ((pl.hp < maxHp() || lv.id == LV_HOME) && erng.f() < (lv.id == LV_HOME ? 0.6f : chance)) dropWax(e.pos);
@@ -284,6 +294,117 @@ void Game::updateEnemies(float dt) {
                 moveBox(e.pos, e.vel, e.radius, e.height, dt, e.grounded, nullptr, true);
                 if (e.pos.y < lv.killY || (lv.waterY > -999 && e.pos.y < lv.waterY - 0.6f)) e.alive = false;
             } break;
+            // ------------------------------------------------ Virus: a green bug that scuttles at you and copies itself when burned
+            case E_VIRUS: {
+                V3 want(0, 0, 0);
+                if (e.state == 0) { if (playerOk && dist < 18) e.state = 1; }
+                else {
+                    want = dirTo(e.pos, pl.pos) * 5.2f + V3(std::sin(e.anim * 11 + e.id), 0, std::cos(e.anim * 8 + e.id)) * 2.2f;
+                    if (playerOk && dist < 0.85f && e.cd <= 0 && std::fabs(pl.pos.y - e.pos.y) < 1) { hurtPlayer(1, e.pos); e.cd = 1.3f; }
+                }
+                e.vel.x = approach(e.vel.x, want.x, 30 * dt); e.vel.z = approach(e.vel.z, want.z, 30 * dt);
+                if (lenXZ(e.vel) > 0.3f) e.yaw = std::atan2(e.vel.x, e.vel.z);
+                e.vel.y -= GRAVITY * dt;
+                moveBox(e.pos, e.vel, e.radius, e.height, dt, e.grounded, nullptr, true);
+                if (e.pos.y < lv.killY || (lv.waterY > -999 && e.pos.y < lv.waterY - 0.6f)) e.alive = false;
+            } break;
+            // ------------------------------------------------ Firewall drone: hovers, circles, fires straight code bolts
+            case E_DRONE: {
+                if (e.state == 0) { if (playerOk && dist < 20 && std::fabs(pl.pos.y - e.pos.y) < 9) e.state = 1; e.target = e.home; }
+                else {
+                    float a = e.anim * 0.6f + e.id * 1.7f;
+                    float ground = groundHeightBelow(pl.pos + V3(0, 1, 0), 6);
+                    float baseY = (ground > -1e8f ? ground : pl.pos.y);
+                    e.target = pl.pos + V3(std::cos(a) * 6.5f, 0, std::sin(a) * 6.5f);
+                    e.target.y = baseY + 2.8f + 0.3f * std::sin(e.anim * 2);
+                    e.yaw = std::atan2(pl.pos.x - e.pos.x, pl.pos.z - e.pos.z);
+                    if (e.cd <= 0 && playerOk && dist < 22) {
+                        if (e.t < 0) {}
+                        V3 o = e.pos + V3(0, 0.2f, 0);
+                        V3 d = pc + V3(0, 0.2f, 0) - o;
+                        float l = len(d);
+                        float hit = raycast(o, d / l, l);
+                        if (hit < 0 || hit > l - 0.5f) {
+                            Projectile pr; pr.type = PR_CODE; pr.pos = o; pr.vel = d / l * 11.f; pr.radius = 0.3f; pr.life = 4;
+                            projs.push_back(pr);
+                            audio::playAt(SFX_BLIP, o, 0.8f, 2.2f);
+                            e.cd = erng.range(1.8f, 2.6f);
+                        } else e.cd = 0.4f;
+                    }
+                    if (!playerOk || dist > 30) e.state = 0;
+                }
+                V3 d = e.target - e.pos;
+                float l = len(d);
+                V3 np = e.pos + (l > 0.05f ? d / l * std::min(l, 4.5f * dt) : V3());
+                if (boxFree(AABB(np - V3(0.4f, 0.3f, 0.4f), np + V3(0.4f, 0.5f, 0.4f)))) e.pos = np;
+                else e.pos.y += 2 * dt;
+            } break;
+            // ------------------------------------------------ Decoy: a fake Wick made of glitches that runs at you and pops
+            case E_DECOY: {
+                V3 want(0, 0, 0);
+                if (e.state == 0) {
+                    if (playerOk) want = dirTo(e.pos, pl.pos) * 6.0f;
+                    if (playerOk && dist < 1.7f) { e.state = 1; e.t = 0; audio::playAt(SFX_CHARGE, e.pos, 0.6f, 1.8f); }
+                    if (e.t > 9) { e.state = 1; e.t = 0; }
+                } else if (e.t > 0.55f) {
+                    if (playerOk && distXZ(e.pos, pl.pos) < 2.3f && std::fabs(pl.pos.y - e.pos.y) < 1.5f) hurtPlayer(1, e.pos);
+                    burst(e.pos + V3(0, 0.7f, 0), hexColor(0x60ff90), 24, 6, 0.1f, 3, 0.5f, 0);
+                    audio::playAt(SFX_BLOOM, e.pos, 0.5f, 1.8f);
+                    glitch = std::max(glitch, 0.35f);
+                    e.alive = false;
+                    break;
+                }
+                e.vel.x = approach(e.vel.x, want.x, 35 * dt); e.vel.z = approach(e.vel.z, want.z, 35 * dt);
+                if (lenXZ(e.vel) > 0.3f) e.yaw = std::atan2(e.vel.x, e.vel.z);
+                e.vel.y -= GRAVITY * dt;
+                moveBox(e.pos, e.vel, e.radius, e.height, dt, e.grounded, nullptr, true);
+                if (e.grounded && lenXZ(want) > 0.5f && std::fmod(e.anim, 0.5f) < dt) e.vel.y = 3.5f;
+                if (e.pos.y < lv.killY) e.alive = false;
+            } break;
+            // ------------------------------------------------ FBI agent: patrols with a flashlight, chases, aims a laser and fires
+            case E_AGENT: {
+                V3 fwd(std::sin(e.yaw), 0, std::cos(e.yaw));
+                V3 want(0, 0, 0);
+                bool sees = false;
+                if (playerOk && dist < 13 && std::fabs(pl.pos.y - e.pos.y) < 5) {
+                    V3 to = dirTo(e.pos, pl.pos);
+                    bool inCone = dot(to, fwd) > 0.78f || dist < 2.5f;
+                    if (inCone || e.alerted) {
+                        V3 o = e.pos + V3(0, 1.6f, 0), d = pc - o; float l = len(d);
+                        float hit = raycast(o, d / l, l);
+                        sees = hit < 0 || hit > l - 0.4f;
+                    }
+                }
+                if (e.state == 0) {  // patrol between home and target
+                    V3 goal = std::fmod(e.anim, 12.f) < 6 ? e.target : e.home;
+                    if (distXZ(e.pos, goal) > 0.4f) { want = dirTo(e.pos, goal) * 2.0f; e.yaw = angleApproach(e.yaw, std::atan2(want.x, want.z), dt * 4); }
+                    if (sees) { e.state = 1; e.alerted = true; spotted(e.pos); audio::playAt(SFX_ROAR, e.pos, 0.5f, 2.6f); floatText(e.pos + V3(0, 2.4f, 0), "FREEZE!", hexColor(0xff5050)); }
+                    if (alarmT > 0 && distXZ(e.pos, pl.pos) < 40) { e.state = 1; e.alerted = true; }
+                } else if (e.state == 1) {  // chase
+                    float toYaw = std::atan2(pl.pos.x - e.pos.x, pl.pos.z - e.pos.z);
+                    e.yaw = angleApproach(e.yaw, toYaw, dt * 6);
+                    if (dist > 6) want = dirTo(e.pos, pl.pos) * 4.6f;
+                    else if (dist < 3) want = dirTo(pl.pos, e.pos) * 2.5f;
+                    if (sees && dist < 14 && e.cd <= 0) { e.state = 2; e.t = 0; audio::playAt(SFX_CHARGE, e.pos, 0.5f, 2.0f); }
+                    if (playerOk && dist < 1.2f && e.cd <= 0) { hurtPlayer(1, e.pos); e.cd = 1.2f; audio::playAt(SFX_TICK, e.pos, 1, 0.5f); }
+                    if (!playerOk || (dist > 45 && alarmT <= 0)) { e.state = 0; e.alerted = false; }
+                } else if (e.state == 2) {  // aim: a red laser dot tracks you, then it fires
+                    e.yaw = angleApproach(e.yaw, std::atan2(pl.pos.x - e.pos.x, pl.pos.z - e.pos.z), dt * (e.t < 0.6f ? 8.f : 1.f));
+                    if (e.t < 0.6f) e.target2 = pc;
+                    if (e.t > 0.85f) {
+                        V3 o = e.pos + V3(0, 1.3f, 0) + fwd * 0.5f;
+                        V3 d = e.target2 - o; float l = len(d);
+                        Projectile pr; pr.type = PR_BULLET; pr.pos = o; pr.vel = d / std::max(l, 0.01f) * 24.f; pr.radius = 0.22f; pr.life = 2.5f;
+                        projs.push_back(pr);
+                        audio::playAt(SFX_CLANK, o, 1.2f, 2.2f);
+                        e.state = 1; e.cd = erng.range(1.5f, 2.3f);
+                    }
+                }
+                e.vel.x = approach(e.vel.x, want.x, 30 * dt); e.vel.z = approach(e.vel.z, want.z, 30 * dt);
+                e.vel.y -= GRAVITY * dt;
+                moveBox(e.pos, e.vel, e.radius, e.height, dt, e.grounded, nullptr, true);
+                if (e.pos.y < lv.killY) e.alive = false;
+            } break;
             // ------------------------------------------------ Gloom King: giant leaping gloomling (mini-boss)
             case E_GLOOMKING: {
                 V3 want(0, 0, 0);
@@ -403,12 +524,15 @@ void Game::updateEnemies(float dt) {
     }
     flame.smother = smother;
     auto ps = pendingSpawns; pendingSpawns.clear();
-    for (auto& p : ps) spawnEnemy(p.t, p.pos, p.arena);
+    for (auto& p : ps) {
+        spawnEnemy(p.t, p.pos, p.arena);
+        if (p.gen) { enemies.back().gen = p.gen; enemies.back().state = 1; enemies.back().radius = 0.28f; }
+    }
     // separate overlapping ground enemies a little
     for (size_t i = 0; i < enemies.size(); i++)
         for (size_t j = i + 1; j < enemies.size(); j++) {
             Enemy &a = enemies[i], &b = enemies[j];
-            if (!a.alive || !b.alive || a.type == E_MOTH || b.type == E_MOTH || a.type == E_TARBELL || b.type == E_TARBELL) continue;
+            if (!a.alive || !b.alive || a.type == E_MOTH || b.type == E_MOTH || a.type == E_TARBELL || b.type == E_TARBELL || a.type == E_DRONE || b.type == E_DRONE) continue;
             V3 d = flatXZ(a.pos - b.pos);
             float l = len(d), m = a.radius + b.radius;
             if (l < m && l > 0.001f) {
@@ -473,6 +597,19 @@ void Game::updateProjectiles(float dt) {
                 }
             } break;
             case PR_DUST: break;
+            case PR_CODE: case PR_BULLET: {
+                V3 step = p.vel * dt;
+                float sl = len(step);
+                float t = sl > 1e-5f ? raycast(p.pos, step / sl, sl) : -1;
+                // the flame burns code bolts and bullets out of the air
+                if (flame.st != F_HELD && len(flame.pos - p.pos) < 0.9f) {
+                    p.alive = false; burst(p.pos, p.type == PR_CODE ? hexColor(0x60ff90) : hexColor(0xffe0a0), 8, 3, 0.07f, 3, 0.3f, 0);
+                    audio::playAt(SFX_HIT, p.pos, 0.4f, 1.8f); break;
+                }
+                if (!pl.dead && len(pc + V3(0, 0.15f, 0) - p.pos) < p.radius + 0.45f) { hurtPlayer(1, p.pos); p.alive = false; break; }
+                if (t >= 0) { p.alive = false; burst(p.pos + step / sl * t, p.type == PR_CODE ? hexColor(0x60ff90) : hexColor(0xc0c0c0), 6, 2, 0.06f, 3, 0.25f, 4); break; }
+                p.pos += step;
+            } break;
         }
     }
     projs.erase(std::remove_if(projs.begin(), projs.end(), [](const Projectile& p) { return !p.alive; }), projs.end());
@@ -494,7 +631,7 @@ void Game::updateProjectiles(float dt) {
             t.fired = true;
             if (!pl.dead && distXZ(pl.pos, t.pos) < t.radius && pl.pos.y < t.pos.y + 3.0f) hurtPlayer(t.dmg, t.pos);
             audio::playAt(t.kind == 1 ? SFX_WHISPER : SFX_SLAM, t.pos, t.kind == 1 ? 0.5f : 0.7f);
-            burst(t.pos + V3(0, 0.3f, 0), t.kind == 1 ? hexColor(0xd8d0c0) : hexColor(0x5a2a8a), 24, 6, 0.14f, t.kind == 1 ? 2 : 0, 0.7f, 6);
+            burst(t.pos + V3(0, 0.3f, 0), t.kind == 1 ? hexColor(0xd8d0c0) : (t.kind == 2 ? hexColor(0x40ff80) : hexColor(0x5a2a8a)), 24, 6, 0.14f, t.kind == 1 ? 2 : 0, 0.7f, 6);
             addShake(0.15f);
         }
         if (t.t > t.delay + t.linger) t.alive = false;

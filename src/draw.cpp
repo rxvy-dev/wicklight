@@ -2,6 +2,13 @@
 #include "game.h"
 
 static const V3 FLAME_COL = V3(1.0f, 0.62f, 0.28f);
+void drawHat(Renderer* R, const M4& base, int hat, float headY, float t, float alpha);
+float hatLift(int hat);
+void drawNPCExtra(Renderer* R, int who, V3 pos, float yaw, float t);
+void drawEnemyExtra(Game& g, Renderer* R, const Enemy& e);
+void drawPickupExtra(Renderer* R, const Pickup& p, V3 pos, float t);
+void drawWorldExtras(Game& g, Renderer* R);
+void extrasLights(Game& g, Renderer* R);
 
 static M4 TRS(V3 t, float yaw, V3 s) { return M4::translate(t) * M4::rotY(yaw) * M4::scale(s); }
 
@@ -57,14 +64,23 @@ static void drawWick(Game& g, Renderer* R) {
     // eyes
     for (int s = -1; s <= 1; s += 2)
         R->drawPart(PM_CUBE, base * M4::translate(V3(0.09f * s, headY + 0.02f, 0.2f)) * M4::scale(V3(0.06f, 0.09f, 0.03f)), T_WHITE, hexColor(0x1a1018), 0, 0, alpha);
+    // hat
+    int hat = (g.screen == SC_INTRO || melt > 0.3f) ? 0 : g.save.hat;
+    float lift = hatLift(hat);
+    drawHat(R, base, hat, headY, t, alpha);
     // wick
     bool held = g.flame.st == F_HELD && !p.dead;
-    R->drawPart(PM_CUBE, base * M4::translate(V3(0, headY + 0.2f, 0)) * M4::scale(V3(0.04f, 0.12f, 0.04f)), T_WHITE, held ? hexColor(0x3a2a20) : hexColor(0xff5020), held ? 0.f : 1.5f, 0, alpha);
+    R->drawPart(PM_CUBE, base * M4::translate(V3(0, headY + 0.2f + lift, 0)) * M4::scale(V3(0.04f, 0.12f, 0.04f)), T_WHITE, held ? hexColor(0x3a2a20) : hexColor(0xff5020), held ? 0.f : 1.5f, 0, alpha);
     if (held && g.screen != SC_INTRO) {
         float sc = 1.0f;
         bool white = false;
         if (g.flame.charging) { sc = 1 + std::min(g.flame.charge, 0.75f) * 0.8f; white = g.flame.charge >= 0.75f; }
-        drawFlame(R, p.pos + V3(0, headY + 0.32f, 0), sc, t, white, alpha);
+        drawFlame(R, p.pos + V3(0, headY + 0.32f + lift, 0), sc, t, white, alpha);
+    }
+    // overclock: a cyan afterimage trail
+    if (g.ocT > 0 && !R->shadowPass) {
+        V3 v = flatXZ(p.vel);
+        for (int k = 1; k <= 3; k++) R->drawPart(PM_CYL, M4::translate(p.pos - v * (0.04f * k) + V3(0, 0.6f, 0)) * M4::rotY(p.yaw) * M4::scale(V3(0.5f, 1.1f, 0.46f)), T_WHITE, hexColor(0x60e0ff), 1.5f, 0, 0.25f / k);
     }
     if (g.screen == SC_INTRO && g.flame.charging) drawFlame(R, p.pos + V3(0, headY + 0.32f, 0), 1, t, false);
     if (melt > 0) R->drawPart(PM_CYL, M4::translate(p.pos + V3(0, 0.02f, 0)) * M4::scale(V3(0.5f + melt * 0.8f, 0.04f, 0.5f + melt * 0.8f)), T_WAX, wax, 0, 0, 1);
@@ -105,6 +121,7 @@ static void drawNPC(Renderer* R, int who, V3 pos, float yaw, float t) {
             for (int s = -1; s <= 1; s += 2) R->drawPart(PM_CUBE, b * M4::translate(V3(0.55f * s, 0.65f, 0.1f)) * M4::rotX(std::sin(t * 3 + s) * 0.3f) * M4::scale(V3(0.15f, 0.7f, 0.15f)), T_METAL, col);
         } break;
         case 9: break;  // the blueprint table is level geometry
+        case 11: case 12: case 13: case 14: case 15: case 16: drawNPCExtra(R, who, pos, yaw, t); break;
         case 10: {  // Bramble the beaver
             R->drawPart(PM_SPHERE, b * M4::translate(V3(0, 0.75f, 0)) * M4::scale(V3(1.1f, 1.4f, 1.0f)), T_DIRT, hexColor(0x8a5a30));
             R->drawPart(PM_SPHERE, b * M4::translate(V3(0, 1.65f + bob, 0.1f)) * M4::scale(V3(0.8f, 0.7f, 0.8f)), T_DIRT, hexColor(0x9a6a40));
@@ -236,7 +253,9 @@ static void drawEnemy(Game& g, Renderer* R, const Enemy& e) {
                 R->drawPart(PM_CUBE, b * M4::translate(V3(0.45f * s, 1.3f, 0.1f)) * M4::rotX(claw) * M4::translate(V3(0, -0.4f, 0)) * M4::scale(V3(0.12f, 0.8f, 0.12f)), T_SHADOW, V3(1, 1, 1), 0, fl, a);
             }
         } break;
+        default: break;
     }
+    if (e.type >= E_VIRUS) drawEnemyExtra(g, R, e);
     if (e.type == E_WRAITH && e.reveal < 0.3f) return;
     // small health pips above damaged enemies
     (void)g;
@@ -542,6 +561,7 @@ static void drawGeometry(Game& g, Renderer* R) {
                 R->drawPart(PM_OCTA, TRS(pos, t * 4 + p.bob, V3(sc, sc * 1.4f, sc)), T_WHITE, hexColor(0xffa030), 2.5f);
             } break;
             case PK_WAX: R->drawPart(PM_SPHERE, TRS(pos, t * 3, V3(0.3f, 0.4f, 0.3f)), T_WAX, V3(1, 1, 1), 0.6f); break;
+            case PK_HAT: case PK_POWER: drawPickupExtra(R, p, pos, t); break;
         }
     }
     // wards above closed barriers (faint, only nearby)
@@ -585,7 +605,7 @@ static void drawGeometry(Game& g, Renderer* R) {
     // the people of the Hollow
     for (auto& tk : g.lv.talkers) if (tk.who >= 3) {
         float yaw = tk.yaw;
-        if (g.screen == SC_PLAY && len(g.pl.pos - tk.pos) < 8) yaw = std::atan2(g.pl.pos.x - tk.pos.x, g.pl.pos.z - tk.pos.z);
+        if (g.screen == SC_PLAY && len(g.pl.pos - tk.pos) < 8 && tk.who != 15 && tk.who != 16) yaw = std::atan2(g.pl.pos.x - tk.pos.x, g.pl.pos.z - tk.pos.z);
         drawNPC(R, tk.who, tk.pos, yaw, t);
     }
     drawBots(g, R);
@@ -631,12 +651,13 @@ static void drawGeometry(Game& g, Renderer* R) {
             default: break;
         }
     }
+    drawWorldExtras(g, R);
     // shockwave rings
     for (auto& r : g.rings) drawRing(R, r.c, r.r, r.color, 1.5f);
     // telegraphs
     for (auto& tg : g.teles) {
         float k = clampf(tg.t / tg.delay, 0, 1);
-        V3 col = tg.kind == 1 ? hexColor(0xe8e0c8) : hexColor(0xff3a3a);
+        V3 col = tg.kind == 1 ? hexColor(0xe8e0c8) : (tg.kind == 2 ? hexColor(0x40ff80) : hexColor(0xff3a3a));
         if (!tg.fired) {
             R->drawPart(PM_CYL, M4::translate(tg.pos + V3(0, 0.04f, 0)) * M4::scale(V3(tg.radius * 2 * k, 0.03f, tg.radius * 2 * k)), T_WHITE, col, 0.8f, 0, 0.45f);
             drawRing(R, tg.pos - V3(0, 0.08f, 0), tg.radius, col, 1.2f, 0.12f, 32);
@@ -709,6 +730,7 @@ void Game::draw() {
     }
 
     homeLights(*this, R);
+    extrasLights(*this, R);
     // shadow + scene passes
     R->beginShadow(screen == SC_TITLE ? V3(0, 0, 0) : pl.pos);
     drawGeometry(*this, R);
@@ -726,6 +748,8 @@ void Game::draw() {
     R->fade = fadeAmt;
     R->overlayA = flashOverlay * 0.6f;
     R->overlayCol = flashColor;
+    if (ocT > 0 && flashOverlay < 0.2f) { R->overlayA = std::max(R->overlayA, 0.12f * std::min(1.f, ocT)); R->overlayCol = hexColor(0x40c0ff); }
+    R->glitch = (screen == SC_PLAY || screen == SC_PAUSE) ? glitch : 0.f;
     if (bloomFlash > 0.7f) { R->overlayA = std::max(R->overlayA, (bloomFlash - 0.7f) * 0.5f); R->overlayCol = hexColor(0xffd0a0); }
     if (lv.id == LV_HOME && vox.active && vox.get((int)std::floor(eye.x), (int)std::floor(eye.y), (int)std::floor(eye.z)) == BK_WATER) { R->overlayA = std::max(R->overlayA, 0.45f); R->overlayCol = hexColor(0x1a4a7a); }
     R->endScene();

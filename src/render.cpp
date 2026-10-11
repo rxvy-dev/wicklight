@@ -164,13 +164,28 @@ void main(){ vec2 p = vec2((gl_VertexID==1)?3.0:-1.0, (gl_VertexID==2)?3.0:-1.0)
 static const char* POST_FS = R"(#version 330 core
 in vec2 vUV; out vec4 oCol;
 uniform sampler2D uScene; uniform sampler2D uDepth; uniform vec2 uRes; uniform float uFade; uniform vec4 uOverlay;
-uniform float uLevels; uniform int uOutline; uniform float uNear; uniform float uFar;
+uniform float uLevels; uniform int uOutline; uniform float uNear; uniform float uFar; uniform float uGlitch; uniform float uTime;
+float gh(float a, float b){ return fract(sin(a * 12.9898 + b * 78.233) * 43758.5453); }
 float bayer4(vec2 p){ ivec2 i = ivec2(mod(p,4.0)); int idx = i.x + i.y*4;
   float m[16] = float[16](0.,8.,2.,10.,12.,4.,14.,6.,3.,11.,1.,9.,15.,7.,13.,5.); return (m[idx]+0.5)/16.0; }
 float lin(float d){ float z = d*2.0-1.0; return 2.0*uNear*uFar/(uFar+uNear - z*(uFar-uNear)); }
 void main(){
   ivec2 p = ivec2(clamp(vUV * uRes, vec2(0.0), uRes - 1.0));
   vec3 c = texelFetch(uScene, p, 0).rgb;
+  if (uGlitch > 0.001) {
+    // glitch: torn horizontal bands, RGB split, green data noise
+    float tq = floor(uTime * 18.0);
+    float band = floor(float(p.y) / 5.0);
+    float r = gh(band, tq);
+    int sh = 0;
+    if (r > 1.0 - uGlitch * 0.6) sh = int((gh(band, tq + 7.0) - 0.5) * 60.0 * uGlitch);
+    int k = int(1.0 + 4.0 * uGlitch);
+    ivec2 q = ivec2(clamp(p.x + sh, 0, int(uRes.x) - 1), p.y);
+    c.r = texelFetch(uScene, ivec2(clamp(q.x + k, 0, int(uRes.x) - 1), q.y), 0).r;
+    c.g = texelFetch(uScene, q, 0).g;
+    c.b = texelFetch(uScene, ivec2(clamp(q.x - k, 0, int(uRes.x) - 1), q.y), 0).b;
+    if (gh(float(p.x / 3) + band * 17.0, tq) > 1.0 - uGlitch * 0.05) c = vec3(0.3, 1.0, 0.55);
+  }
   if (uOutline == 1) {
     float draw = texelFetch(uDepth, p, 0).r;
     if (draw < 0.9999) {
@@ -695,6 +710,8 @@ void Renderer::endScene() {
     glUniform1f(loc(progPost, "uFade"), sat(fade));
     glUniform4f(loc(progPost, "uOverlay"), overlayCol.x, overlayCol.y, overlayCol.z, sat(overlayA));
     glUniform1f(loc(progPost, "uLevels"), colorLevels);
+    glUniform1f(loc(progPost, "uGlitch"), sat(glitch));
+    glUniform1f(loc(progPost, "uTime"), time);
     glUniform1i(loc(progPost, "uOutline"), outlines ? 1 : 0);
     glUniform1f(loc(progPost, "uNear"), NEAR_Z);
     glUniform1f(loc(progPost, "uFar"), FAR_Z);

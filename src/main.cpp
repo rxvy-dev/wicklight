@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
         else if (a == "--height") height = atoi(next().c_str());
         else if (a == "--windowed") forceFs = 0;
         else if (a == "--fullscreen") forceFs = 1;
-        else if (a == "--version") { printf("WICKLIGHT 1.0.1\n"); return 0; }
+        else if (a == "--version") { printf("WICKLIGHT 1.1.0\n"); return 0; }
         else if (a == "--help" || a == "-h") { usage(); return 0; }
     }
 
@@ -190,6 +190,7 @@ int main(int argc, char** argv) {
             padDown[A_JUMP] = bt(SDL_CONTROLLER_BUTTON_A); padDown[A_DASH] = bt(SDL_CONTROLLER_BUTTON_B);
             padDown[A_BLOOM] = bt(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER); padDown[A_INTERACT] = bt(SDL_CONTROLLER_BUTTON_X);
             padDown[A_PAUSE] = bt(SDL_CONTROLLER_BUTTON_START); padDown[A_JOURNAL] = bt(SDL_CONTROLLER_BUTTON_BACK);
+            padDown[A_GRAPPLE] = bt(SDL_CONTROLLER_BUTTON_Y); padDown[A_FIREWALL] = bt(SDL_CONTROLLER_BUTTON_LEFTSTICK); padDown[A_OVERCLOCK] = bt(SDL_CONTROLLER_BUTTON_RIGHTSTICK);
             static bool padPrevA[A_COUNT] = {};
             for (int a = 0; a < A_COUNT; a++) {
                 if (padDown[a] && !padPrevA[a]) in.pressed[a] = true;

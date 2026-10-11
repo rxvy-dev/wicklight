@@ -609,6 +609,45 @@ std::vector<uint8_t> generateAtlas() {
                         p.px(x, y, H(0x101010), crack ? 255 : 0);
                     }
             } break;
+            case T_CODE: {  // green glyphs on a black screen (emissive)
+                for (int y = 0; y < 16; y++)
+                    for (int x = 0; x < 16; x++) {
+                        int col = x / 2, row = y;
+                        bool glyph = (x % 2 == 0) && hashf(col, row, 41) > 0.45f && hashf(col, 0, 42) > 0.2f;
+                        float fade = 0.35f + 0.65f * std::fmod(row / 16.f + hashf(col, 1, 43), 1.f);
+                        if (glyph) p.px(x, y, H(0x50ff90) * fade, 180);
+                        else p.px(x, y, H(0x06140a));
+                    }
+            } break;
+            case T_ASPHALT: {
+                for (int y = 0; y < 16; y++)
+                    for (int x = 0; x < 16; x++) {
+                        float g = 0.85f + 0.3f * p.n(x, y);
+                        V3 c = H(0x2a2a30) * g;
+                        if (p.n(x, y, 3) > 0.93f) c = H(0x4a4a52);
+                        p.px(x, y, c);
+                    }
+            } break;
+            case T_BRICK: {
+                for (int y = 0; y < 16; y++)
+                    for (int x = 0; x < 16; x++) {
+                        int row = y / 4, off = (row & 1) * 4;
+                        bool mortar = (y % 4 == 3) || ((x + off) % 8 == 7);
+                        float shade = 0.8f + 0.35f * hashf((x + off) / 8, row, 19);
+                        p.px(x, y, mortar ? H(0x3a3030) : H(0x8a3a2e) * shade * (0.92f + 0.12f * p.n(x, y)));
+                    }
+            } break;
+            case T_OFFICE: {  // tower wall: grid of windows, some lit
+                for (int y = 0; y < 16; y++)
+                    for (int x = 0; x < 16; x++) {
+                        bool frame = (x % 8) < 1 || (y % 8) < 2;
+                        int wx = x / 8, wy = y / 8;
+                        bool lit = hashf(wx, wy, 55) > 0.55f;
+                        if (frame) p.px(x, y, H(0x30343e) * (0.9f + 0.15f * p.n(x, y)));
+                        else if (lit) p.px(x, y, (hashf(wx, wy, 56) > 0.5f ? H(0xffe0a0) : H(0xa0d0ff)) * (0.85f + 0.15f * p.n(x, y)), 180);
+                        else p.px(x, y, H(0x141c2a));
+                    }
+            } break;
             default: p.fill(V3(1, 0, 1), 0); break;
         }
     }

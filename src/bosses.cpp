@@ -278,15 +278,18 @@ static void hacker(Game& g, float dt) {
     float& down = b.f[6];        // firewall-down timer
     float& atk = b.f[7];         // attack timer
     float& taunt = b.f[8];
+    float& tele = b.f[9];        // teleport timer
     if (b.i[0] == 0) {           // first frame: servers online
         b.i[0] = 1;
         for (int k = 0; k < 3; k++) srvHp[k] = 2;
+        b.v[1] = C + V3(0, 5.5f, 0);
         g.statusMsg = "BURN THE 3 SERVERS with your flame to crash his FIREWALL!"; g.statusT = 5;
     }
     if (b.phase == 0 && b.hp <= 6) {
         b.phase = 1;
         g.statusMsg = "GL1TCH: ok ok OK. enabling turbo mode"; g.statusT = 3;
         audio::play(SFX_ROAR, 1, 1.8f);
+        g.glitch = std::max(g.glitch, 0.8f);
     }
     int burned = 0;
     for (int k = 0; k < 3; k++) if (srvHp[k] <= 0) burned++;
@@ -296,8 +299,10 @@ static void hacker(Game& g, float dt) {
         firewall = false;
         audio::play(SFX_BREAK, 1.4f, 0.6f);
         g.addShake(0.5f);
+        g.glitch = std::max(g.glitch, 0.7f);
         g.statusMsg = "FIREWALL DOWN! Burn GL1TCH now!"; g.statusT = 3;
         g.floatText(C + V3(0, 4, 0), "CONNECTION LOST", hexColor(0x60ff90));
+        for (auto& e : g.enemies) if (e.alive && e.type == E_DECOY) { e.alive = false; g.burst(e.pos + V3(0, 0.6f, 0), hexColor(0x60ff90), 10, 4, 0.08f, 3, 0.4f, 0); }
     }
     if (!firewall) {
         down -= dt;
@@ -307,11 +312,24 @@ static void hacker(Game& g, float dt) {
             // reboot everything
             for (int k = 0; k < 3; k++) { srvHp[k] = 2; reboot[k] = 0; }
             audio::play(SFX_UNLOCK, 0.6f, 0.5f);
+            g.glitch = std::max(g.glitch, 0.5f);
             g.statusMsg = "GL1TCH: rebooting... lol you thought. BURN THE SERVERS AGAIN"; g.statusT = 3;
+            tele = 0;
         }
     } else {
-        // hovering above his terminal, attacking
-        b.pos = lerp(b.pos, C + V3(std::sin(g.time * 0.7f) * 2, 5.5f + std::sin(g.time * 1.9f) * 0.4f, std::cos(g.time * 0.5f) * 2), 1 - std::exp(-dt * 2));
+        // teleporting between perches above his servers
+        tele += dt;
+        if (tele > (b.phase ? 5.0f : 7.5f)) {
+            tele = 0;
+            int k = b.i[2]++ % 4;
+            V3 spot = k < 3 ? hackServerPos(C, k) + V3(0, 7.0f, 0) - norm(flatXZ(hackServerPos(C, k) - C)) * 2.5f : C + V3(0, 5.5f, 0);
+            g.burst(b.pos + V3(0, 0.8f, 0), hexColor(0x60ff90), 24, 5, 0.1f, 3, 0.5f, 0);
+            b.pos = spot; b.v[1] = spot;
+            g.burst(b.pos + V3(0, 0.8f, 0), hexColor(0x60ff90), 24, 5, 0.1f, 3, 0.5f, 0);
+            audio::playAt(SFX_BLINK, b.pos, 1.2f, 1.4f);
+            g.glitch = std::max(g.glitch, 0.55f);
+        }
+        b.pos = lerp(b.pos, b.v[1] + V3(std::sin(g.time * 0.7f) * 1.2f, std::sin(g.time * 1.9f) * 0.4f, std::cos(g.time * 0.5f) * 1.2f), 1 - std::exp(-dt * 2));
         // in phase 2 burned servers come back online after a while (burn them quickly!)
         if (b.phase == 1)
             for (int k = 0; k < 3; k++)
@@ -323,7 +341,11 @@ static void hacker(Game& g, float dt) {
         float every = b.phase ? 2.6f : 3.4f;
         if (atk > every) {
             atk = 0;
-            int pick = b.i[1]++ % 3;
+            static const int P0[4] = {0, 1, 3, 2};
+            static const int P1[6] = {0, 3, 1, 4, 2, 3};
+            int pick = b.phase ? P1[b.i[1]++ % 6] : P0[b.i[1]++ % 4];
+            int alive = 0, decoys = 0;
+            for (auto& e : g.enemies) if (e.alive) { alive++; if (e.type == E_DECOY) decoys++; }
             if (pick == 0) {  // data packets that home in on you (your flame burns them)
                 for (int k = 0; k < (b.phase ? 4 : 3); k++) {
                     Projectile pr; pr.type = PR_ORB; pr.pos = b.pos + V3(0, 0.5f, 0); pr.life = 6; pr.radius = 0.35f; pr.dmg = 1;
@@ -333,21 +355,53 @@ static void hacker(Game& g, float dt) {
                     g.projs.push_back(pr);
                 }
                 audio::playAt(SFX_BLIP, b.pos, 2, 0.6f);
-            } else if (pick == 1) {  // "DDoS": strike markers under you
+            } else if (pick == 1) {  // "DDoS": strike markers under you; in turbo mode a whole glitch line sweeps the arena
                 int n = b.phase ? 4 : 3;
                 for (int k = 0; k < n; k++) {
                     Telegraph t; t.pos = g.pl.pos + (k == 0 ? V3(0, 0, 0) : V3(brng.range(-5, 5), 0, brng.range(-5, 5)));
-                    t.pos.y = C.y; t.radius = 2.0f; t.delay = 1.4f; t.dmg = 1;
+                    t.pos.y = C.y; t.radius = 2.0f; t.delay = 1.4f; t.dmg = 1; t.kind = 2;
                     g.teles.push_back(t);
                 }
-            } else {  // malware: little bugs crawl out of the terminal
-                int alive = 0;
-                for (auto& e : g.enemies) if (e.alive) alive++;
-                for (int k = 0; k < 2 && alive < 4; k++, alive++) {
+                if (b.phase) {
+                    float a = brng.range(0, PI);
+                    V3 dir(std::cos(a), 0, std::sin(a));
+                    for (int k = -4; k <= 4; k++) {
+                        Telegraph t; t.pos = g.pl.pos + dir * (k * 3.2f); t.pos.y = C.y;
+                        if (distXZ(t.pos, C) > g.lv.boss.radius - 1.5f) continue;
+                        t.radius = 1.6f; t.delay = 1.6f + (k + 4) * 0.08f; t.dmg = 1; t.kind = 2;
+                        g.teles.push_back(t);
+                    }
+                }
+                g.glitch = std::max(g.glitch, 0.2f);
+                audio::playAt(SFX_BLIP, b.pos, 1.5f, 0.4f);
+            } else if (pick == 2) {  // malware: viruses crawl out of the terminal (and copy themselves when burned)
+                for (int k = 0; k < 2 && alive < 5; k++, alive++) {
                     float a = brng.range(0, TAU);
-                    g.spawnEnemy(E_GLOOMLING, C + V3(std::cos(a) * 3, 0.3f, std::sin(a) * 3), 99);
+                    g.spawnEnemy(E_VIRUS, C + V3(std::cos(a) * 3, 0.3f, std::sin(a) * 3), 99);
                 }
                 g.statusMsg = "GL1TCH: installing malware.exe"; g.statusT = 2;
+            } else if (pick == 3) {  // code bolts fan out of every live server
+                for (int s = 0; s < 3; s++) {
+                    if (srvHp[s] <= 0) continue;
+                    V3 o = hackServerPos(C, s) + V3(0, 2.4f, 0);
+                    V3 d = flatXZ(g.pl.pos - o); float base = std::atan2(d.x, d.z);
+                    for (int k = -1; k <= 1; k++) {
+                        float a = base + k * 0.28f;
+                        Projectile pr; pr.type = PR_CODE; pr.pos = o; pr.vel = V3(std::sin(a), 0, std::cos(a)) * 9.f; pr.vel.y = (g.pl.pos.y + 0.6f - o.y) / 2.f;
+                        pr.radius = 0.3f; pr.life = 4;
+                        g.projs.push_back(pr);
+                    }
+                    g.burst(o, hexColor(0x60ff90), 8, 3, 0.06f, 3, 0.3f, 0);
+                }
+                audio::playAt(SFX_BLIP, C, 1.5f, 1.8f);
+                g.statusMsg = "GL1TCH: sudo rm -rf /candle"; g.statusT = 1.5f;
+            } else {  // fake Wicks: decoys that look just like you and explode
+                for (int k = 0; k < 2 && decoys < 3; k++, decoys++) {
+                    float a = brng.range(0, TAU);
+                    g.spawnEnemy(E_DECOY, C + V3(std::cos(a) * 5, 0.3f, std::sin(a) * 5), 99);
+                }
+                g.glitch = std::max(g.glitch, 0.4f);
+                g.statusMsg = "GL1TCH: which one's the real candle?? lmao"; g.statusT = 2;
             }
         }
         taunt += dt;
