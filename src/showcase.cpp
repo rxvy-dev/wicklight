@@ -500,6 +500,7 @@ struct Seg {
     std::function<void(Game&, float, InputState&)> tick;  // extra input each sim step (t < 0 while skipping)
     std::function<float(float)> speed;
     float flash = 0; bool hud = false;
+    V3 eye, tgt;                                // CM_WIDE: a fixed camera
 };
 }
 
@@ -527,7 +528,18 @@ static std::vector<Seg> updateSegs(int W, int H) {
     s = Seg{"city: firewall holdout", 6};
     s.setup = [](Game& g) { g.save.hat = 8; g.setFlag("ab.firewall"); g.setFlag("city.g1"); g.setFlag("city.arena"); g.enterLevel(LV_CITY, 4); };
     s.route = 2; s.skip = 7.0f; s.dist = 7.0f; s.height = 3.0f;
-    s.tick = [](Game& g, float t, InputState& in) { if (t >= 0.25f && t < 0.26f) { in.pressed[A_FIREWALL] = true; in.down[A_FIREWALL] = true; } };
+    s.tick = [](Game& g, float t, InputState& in) {
+        if (t >= 0 && t < 0.009f) {  // a wave rushes Wick from the far side of the pad
+            for (auto& e : g.enemies) e.alive = false;
+            g.pl.pos = V3(0, 14, 149); g.pl.vel = V3(); g.camYaw = g.pl.yaw = 0;
+            for (V3 p : {V3(-3, 14.2f, 160), V3(0, 14.2f, 162), V3(3, 14.2f, 160)}) { g.spawnEnemy(E_VIRUS, p, -1); g.enemies.back().state = 1; }
+            g.spawnEnemy(E_AGENT, V3(-1.5f, 14, 164), -1); g.enemies.back().state = 1; g.enemies.back().alerted = true;
+            g.spawnEnemy(E_AGENT, V3(2, 14, 165), -1); g.enemies.back().state = 1; g.enemies.back().alerted = true;
+        }
+        if (t >= 0) { g.camYaw = 0; g.botAim = false; }
+        if (t >= 0.35f && t < 0.36f) { g.computeAim(); in.pressed[A_FIREWALL] = true; in.down[A_FIREWALL] = true; }
+        if (t >= 0 && t < 1.2f) { in.moveY = 0; in.moveX = 0; in.pressed[A_THROW] = false; }
+    };
     s.caps = {big(0, 6, tall ? "NEW POWER:\nFIREWALL" : "NEW POWER: FIREWALL", orange), small(0.5f, 6, "a wall of fire nothing gets through")};
     v.push_back(s);
     // 4. Ember Grapple across the broken bridge
@@ -551,8 +563,8 @@ static std::vector<Seg> updateSegs(int W, int H) {
     v.push_back(s);
     // 6. GL1TCH's hacking puzzle
     s = Seg{"clock: hacking puzzle", 7};
-    s.setup = [](Game& g) { g.save.hat = 7; g.save.flags.erase("boss.1"); g.enterLevel(LV_CLOCK, 1); g.pl.pos = g.pl.safePos = V3(0, 18, 170); g.camYaw = 0; for (auto& e : g.enemies) e.alive = false; };
-    s.route = 5; s.skip = 0.3f; s.dist = 6.5f; s.height = 2.6f;
+    s.setup = [](Game& g) { g.save.hat = 7; g.save.flags.erase("boss.1"); g.enterLevel(LV_CLOCK, 1); g.pl.pos = g.pl.safePos = V3(0, 18, 167.6f); g.camYaw = 0; for (auto& e : g.enemies) e.alive = false; };
+    s.route = 5; s.skip = 0.1f; s.cam = CM_WIDE; s.eye = V3(0, 25.5f, 156); s.tgt = V3(0, 21, 178);
     s.speed = [](float x) { return x < 0.45f ? 1.8f : 1.0f; };
     s.caps = {big(0, 7, tall ? "HACK THE\nTERMINALS" : "HACK THE TERMINALS", green), small(0.5f, 7, "watch the order, burn them in the same order")};
     v.push_back(s);
@@ -563,13 +575,13 @@ static std::vector<Seg> updateSegs(int W, int H) {
         g.pl.pos = g.lv.boss.center + V3(-3, 0, -9); g.camYaw = 0.3f; g.startBoss();
         g.boss.hp = g.boss.maxHp = 999; g.boss.phase = 1;
     };
-    s.route = 6; s.skip = 9.0f; s.cam = CM_BOSS; s.dist = 8.0f; s.height = 3.0f; s.flash = 0.4f;
+    s.route = 6; s.skip = 9.0f; s.cam = CM_FOLLOW; s.dist = 9.0f; s.height = 3.5f; s.flash = 0.4f;
     s.caps = {big(0, 7, tall ? "GL1TCH IS\nBACK" : "GL1TCH IS BACK", green), small(0.5f, 7, "teleports, viruses, fake Wicks")};
     v.push_back(s);
     // 8. side jobs: the candle race and fishing
     s = Seg{"hub: candle race", 4};
     s.setup = [](Game& g) { g.save.hat = 4; g.enterLevel(LV_HUB, 0); g.pl.pos = g.pl.safePos = V3(16, 0, 12); g.startRace(); g.raceIdx = 1; };
-    s.skip = 0.2f; s.dist = 6.0f; s.height = 2.0f; s.hud = true;
+    s.skip = 0.2f; s.dist = 6.0f; s.height = 2.0f;
     s.tick = [](Game& g, float, InputState& in) {
         if (g.raceIdx < 0) return;
         const RaceRing& r = g.lv.race[g.raceIdx];
@@ -588,7 +600,7 @@ static std::vector<Seg> updateSegs(int W, int H) {
         for (int i = 0; i < (int)g.lv.talkers.size(); i++) if (g.lv.talkers[i].who == 16) { g.talk(i); g.camYaw = g.lv.talkers[i].yaw - 0.5f; break; }
     };
     s.until = [](Game& g) { return g.fishState == 2 && g.fishT > 0.05f; };
-    s.dist = 4.5f; s.height = 1.6f; s.hud = true;
+    s.dist = 4.5f; s.height = 1.6f;
     s.tick = [](Game& g, float t, InputState& in) {
         if (t < 0) return;
         if (g.fishState == 2 && t > 0.2f) in.pressed[A_INTERACT] = true;
@@ -597,7 +609,7 @@ static std::vector<Seg> updateSegs(int W, int H) {
             if (std::fabs(g.fishNeedle - g.fishZone) < g.fishZoneW * 0.25f && g.fishT > 0.5f) in.pressed[A_INTERACT] = true;
         }
     };
-    s.caps = {big(0, 5, tall ? "FISHING" : "FISHING", cyan), small(0.5f, 5, "catch the Golden Carp")};
+    s.caps = {big(0, 5, tall ? "FISHING" : "FISHING", cyan), small(0.5f, 2.6f, "...wait for it..."), Caption{2.6f, 5, tall ? "GOLDEN\nCARP!" : "GOLDEN CARP!", 7, tall ? 0.62f : 0.6f, gold}};
     v.push_back(s);
     // 9. end card
     s = Seg{"end card", 7};
@@ -666,7 +678,8 @@ static int runUpdate(Game& g, Renderer& R, Recorder& rec, int W, int H) {
             g.glitch = std::max(0.f, g.glitch - vdt * 1.6f);
             g.bloomFlash = std::max(0.f, g.bloomFlash - vdt * 2.5f); g.bloomR += vdt * 14;
             V3 se = g.camEye, st = g.camTarget;
-            if (s.cam == CM_BOSS && g.boss.active) { fc.boss(g, vdt, s.dist, s.height); g.camEye = fc.eye; g.camTarget = fc.tgt; }
+            if (s.cam == CM_WIDE) { g.camEye = s.eye + V3(std::sin(ct * 0.4f) * 0.6f, 0, 0); g.camTarget = s.tgt; }
+            else if (s.cam == CM_BOSS && g.boss.active) { fc.boss(g, vdt, s.dist, s.height); g.camEye = fc.eye; g.camTarget = fc.tgt; }
             else if (s.cam == CM_ORBIT) {
                 if (!fc.init) { fc.yaw = g.camYaw; fc.tgt = g.pl.pos + V3(0, 1.3f, 0); fc.init = true; }
                 float a = fc.yaw + PI - 0.7f + ck * 1.2f;

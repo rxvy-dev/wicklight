@@ -493,7 +493,7 @@ void buildClock(Level& L, Game&) {
         std::vector<V3> tp; std::vector<float> ty;
         for (V3 p : {V3(-9, 22, 173), V3(9, 22, 173), V3(-9, 22, 182), V3(9, 22, 182)}) {
             b.pillar(p.x, p.z, 6, 22, 1.2f, T_STONEBRICK);
-            tp.push_back(p); ty.push_back(p.x < 0 ? PI / 2 : -PI / 2);
+            tp.push_back(p); ty.push_back(PI);  // screens face the way you come in
         }
         addPuzzle(b, AABB(V3(-3, 17, 167), V3(3, 23, 186)), tp, ty, 4, 7, 1, "clock.g2", -1, V3());
     }
