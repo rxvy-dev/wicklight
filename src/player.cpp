@@ -124,6 +124,7 @@ void Game::hurtPlayer(float dmg, V3 from) {
 void Game::killPlayer() {
     if (pl.dead) return;
     pl.dead = true; pl.deadT = 0; pl.hp = 0;
+    if (lv.id == LV_ARENA && gWave > 0) gLast = gWave;
     save.deaths++;
     audio::play(SFX_DEATH);
     flame.st = F_HELD;
@@ -178,14 +179,15 @@ void Game::updatePlayer(float dt, const InputState& in) {
     }
     if (p.dashT > 0) {
         p.dashT -= dt;
-        p.vel.x = p.dashDir.x * 21; p.vel.z = p.dashDir.z * 21;
+        float ds = toy(5) ? 30.f : 21.f;
+        p.vel.x = p.dashDir.x * ds; p.vel.z = p.dashDir.z * ds;
         p.vel.y = std::max(p.vel.y, 0.f) * 0.5f;
         if (headless == false && R && ((int)(p.dashT * 120) % 3 == 0)) {
             Particle q; q.pos = p.pos + V3(0, 0.6f, 0); q.vel = V3(0, 0.5f, 0); q.color = hexColor(0xffb050); q.alpha = 0.8f;
             q.size = 0.25f; q.life = q.maxLife = 0.25f; q.kind = 1; R->spawn(q);
         }
     } else {
-        float maxSpeed = 7.2f;
+        float maxSpeed = toy(5) ? 11.5f : 7.2f;
         if (flame.charging) maxSpeed = 4.0f;
         float accel = p.grounded ? 70.f : 28.f;
         V3 hv(p.vel.x, 0, p.vel.z);
@@ -198,7 +200,7 @@ void Game::updatePlayer(float dt, const InputState& in) {
         if (dl > maxD) diff = diff * (maxD / dl);
         if (!grappling) { p.vel.x += diff.x; p.vel.z += diff.z; }
         // gravity
-        p.vel.y -= GRAVITY * dt;
+        p.vel.y -= GRAVITY * gravityMul() * dt;
         if (p.vel.y < -32) p.vel.y = -32;
         if (p.jumpBuf > 0 && p.coyote > 0) {
             p.vel.y = 11.5f; p.jumpBuf = 0; p.coyote = 0; p.grounded = false;
@@ -250,6 +252,13 @@ void Game::updatePlayer(float dt, const InputState& in) {
 
     // falling into water / abyss
     bool inWater = lv.waterY > -999 && p.pos.y < lv.waterY - 0.5f && lv.waterArea.contains(V3(p.pos.x, lv.waterY, p.pos.z));
+    if (lv.id == LV_GOLF && p.pos.y < lv.killY) {  // Flame Golf: out of bounds costs a stroke, not a candle
+        golfStrokes++;
+        statusMsg = "Out of bounds! +1 throw"; statusT = 2;
+        p.pos = p.safePos; p.vel = V3(0, 0, 0); flame.st = F_HELD; respawnFade = 0.5f;
+        audio::play(SFX_SPLASH, 0.6f, 1.5f);
+        return;
+    }
     if (inWater || p.pos.y < lv.killY) {
         if (inWater) { audio::play(SFX_SPLASH); burst(V3(p.pos.x, lv.waterY, p.pos.z), hexColor(0x9ad8e8), 20, 6, 0.1f, 0, 0.7f, 12); }
         bool wasInv = p.invuln > 0;
@@ -278,6 +287,7 @@ void Game::throwFlame(bool charged) {
     computeAim();
     if (!has("tut.throw")) setFlag("tut.throw");
     flame.st = F_FLYING;
+    if (lv.id == LV_GOLF && golfDoneT <= 0) golfStrokes++;
     flame.charged = charged;
     flame.pos = head + aimDir * 0.3f;
     flame.prevPos = head;
@@ -381,7 +391,7 @@ void Game::doBloom() {
     bloomFlash = 1; bloomPos = c; bloomR = 0;
     flame.st = F_HELD; flame.hitIds.clear(); flame.anchored = -1; flame.smother = 0;
     for (auto& e : enemies) if (e.type == E_MOTH) e.clinging = false;
-    flame.bloomCd = 2.5f - 0.5f * upLevel("bloom");
+    flame.bloomCd = toy(6) ? 0.12f : 2.5f - 0.5f * upLevel("bloom");
     audio::playAt(SFX_BLOOM, c);
     addShake(0.4f);
     burst(c, hexColor(0xffb040), 60, 11, 0.14f, 3, 0.7f, 2);
@@ -511,7 +521,7 @@ void Game::updateFlame(float dt, const InputState& in) {
             if (!e.alive || e.clinging) continue;
             if (f.hitIds.count(e.id)) continue;
             V3 c = e.pos + V3(0, e.height * 0.5f, 0);
-            if (segPointDist(f.prevPos, f.pos, c) < e.radius + 0.45f) {
+            if (segPointDist(f.prevPos, f.pos, c) < e.radius + (toy(7) ? 1.3f : 0.45f)) {
                 f.hitIds.insert(e.id);
                 damageEnemy(e, dmg, f.prevPos, f.charged);
             }

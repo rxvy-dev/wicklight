@@ -164,7 +164,7 @@ case "$cmd" in
                WICKLIGHT_DATA_DIR="$(mktemp -d)" "$BUILD/$APP" --headless --autotest endless | grep -E 'depth|endless:'; [ "${PIPESTATUS[0]}" -eq 0 ] || { say "endless test FAILED"; exit 1; }
                WICKLIGHT_DATA_DIR="$(mktemp -d)" "$BUILD/$APP" --headless --autotest endless-nowarp | grep -E 'endless:' || exit 1
                say "new content: hacker puzzles + GL1TCH, the three new powers, Lumen City, side jobs / fishing / race / hats ..."
-               for t in hacker powers city extras postgame; do WICKLIGHT_DATA_DIR="$(mktemp -d)" "$BUILD/$APP" --headless --autotest "$t" | grep -E "^\[bot\] $t|powers:|extras:|hacker:|postgame:" ; [ "${PIPESTATUS[0]}" -eq 0 ] || { say "$t test FAILED"; exit 1; }; done
+               for t in hacker powers city extras postgame fun; do WICKLIGHT_DATA_DIR="$(mktemp -d)" "$BUILD/$APP" --headless --autotest "$t" | grep -E "^\[bot\] $t|powers:|extras:|hacker:|postgame:|fun:" ; [ "${PIPESTATUS[0]}" -eq 0 ] || { say "$t test FAILED"; exit 1; }; done
                say "Wick's Island block world test (mine, place, craft, doors, beds, chests, ladders, bombs, night, saves) ..."
                WICKLIGHT_DATA_DIR="$(mktemp -d)" "$BUILD/$APP" --headless --autotest island | grep -E 'island'; [ "${PIPESTATUS[0]}" -eq 0 ] || { say "island test FAILED"; exit 1; } ;;
     release)   release ;;

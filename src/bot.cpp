@@ -598,6 +598,69 @@ int runFeatureTest(Game& g, const std::string& which) {
         printf("[bot] powers: %s (%d failures)\n", fails ? "FAIL" : "PASS", fails);
         return fails ? 2 : 0;
     }
+    if (which == "fun") {
+        freshFeatureSave(g);
+        g.godMode = true;
+        int fails = 0;
+        auto check = [&](const char* what, bool ok, const std::string& extra = "") { printf("[bot] fun: %-48s %s %s\n", what, ok ? "OK" : "FAIL", extra.c_str()); if (!ok) fails++; };
+        // 1. the Toy Box: kaboom chain reaction, moon gravity
+        g.enterLevel(LV_WHARF, 1); g.dialog.clear();
+        g.setFlag("toy.4"); g.setFlag("toy.2");
+        g.enemies.clear();
+        for (int k = 0; k < 5; k++) g.spawnEnemy(E_GLOOMLING, g.pl.pos + V3(-4 + k * 2.2f, 0.3f, 8), -1);
+        for (int k = 0; k < 30; k++) g.update(SIM_DT, InputState());
+        g.damageEnemy(g.enemies[0], 99, g.pl.pos, false);
+        for (int k = 0; k < 120; k++) g.update(SIM_DT, InputState());
+        int alive = 0; for (auto& e : g.enemies) if (e.alive) alive++;
+        check("Toy Box: Kaboom chain reaction", alive == 0, std::to_string(alive) + " left of 5");
+        { InputState j; j.pressed[A_JUMP] = true; j.down[A_JUMP] = true; float y0 = g.pl.pos.y, peak = y0; for (int k = 0; k < 240; k++) { g.update(SIM_DT, j); j.pressed[A_JUMP] = false; peak = std::max(peak, g.pl.pos.y); }
+          check("Toy Box: Moon Gravity jumps", peak - y0 > 5, "jump height " + std::to_string(peak - y0)); }
+        g.save.flags.erase("toy.4"); g.save.flags.erase("toy.2");
+        // 2. the Gauntlet: fight waves with the bot
+        g.enterLevel(LV_ARENA, 0); g.dialog.clear();
+        Bot bot(g);
+        bot.cmds = {G(0, 0, 0)};
+        float t = 0;
+        while (t < 420 && g.save.gauntletBest < 6) {
+            if (!bot.step()) { bot.cmds = {F(40), W(0.5f)}; bot.pc = 0; }
+            if (getenv("WL_GAUNT") && std::fmod(t, 5.f) < SIM_DT) { printf("   t=%.0f wave %d state %d queue %d pos (%.1f %.1f %.1f)\n", t, g.gWave, g.gState, g.gQueue, g.pl.pos.x, g.pl.pos.y, g.pl.pos.z); for (auto& e : g.enemies) if (e.alive) printf("      e type %d (%.1f %.1f %.1f) st %d hp %.1f\n", e.type, e.pos.x, e.pos.y, e.pos.z, e.state, e.hp); }
+            g.update(SIM_DT, bot.in); t += SIM_DT;
+            g.dialog.clear(); if (g.screen != SC_PLAY) g.screen = SC_PLAY;
+        }
+        check("the Gauntlet: survive 6 waves", g.save.gauntletBest >= 6, "best wave " + std::to_string(g.save.gauntletBest) + " in " + std::to_string((int)t) + "s");
+        // 3. Flame Golf: play 4 generated holes
+        g.save.golfHole = 1;
+        int holes = 0;
+        int NH = getenv("WL_GOLF_N") ? atoi(getenv("WL_GOLF_N")) : 4;
+        for (int h = 0; h < NH; h++) {
+            g.enterLevel(LV_GOLF, 0); g.dialog.clear();
+            Bot gb(g);
+            gb.airOk = false;
+            for (auto& st : g.lv.route) {
+                if (st.op == 0) gb.cmds.push_back(G(st.p.x, st.p.y, st.p.z));
+                if (st.op == 1) { gb.cmds.push_back(TW(st.p.x, st.p.y, st.p.z)); gb.cmds.push_back(W(0.3f)); }
+                if (st.op == 2) { gb.cmds.push_back(T(st.p.x, st.p.y, st.p.z)); }
+            }
+            gb.cmds.push_back(W(1));
+            int hole = g.save.golfHole, played = g.save.golfPlayed, par = g.golfPar;
+            float tt = 0;
+            if (getenv("WL_GOLF")) for (auto& st : g.lv.route) printf("   route op %d (%.1f %.1f %.1f)\n", st.op, st.p.x, st.p.y, st.p.z);
+            while (tt < 60 && g.save.golfPlayed == played) {
+                if (!gb.step() && g.dialog.empty()) break;
+                g.update(SIM_DT, gb.in); tt += SIM_DT; g.dialog.clear();
+                if (getenv("WL_GOLF") && std::fmod(tt, 0.5f) < SIM_DT) printf("   t=%.1f pc=%zu pos=(%.1f %.1f %.1f) flame=%d fpos=(%.1f %.1f %.1f) fails=%d\n", tt, gb.pc, g.pl.pos.x, g.pl.pos.y, g.pl.pos.z, g.flame.st, g.flame.pos.x, g.flame.pos.y, g.flame.pos.z, gb.failures);
+            }
+            for (int k = 0; k < 120 * 5 && g.save.golfHole == hole; k++) g.update(SIM_DT, InputState());
+            bool ok = g.save.golfPlayed == played + 1;
+            printf("[bot] fun:   golf hole %d (par %d): %s in %d throws\n", hole, par, ok ? "sunk" : "NOT SUNK", g.golfStrokes);
+            holes += ok;
+        }
+        check("Flame Golf: every hole generated and sunk", holes == NH && g.save.golfHole == NH + 1);
+        g.writeSave(); SaveData keep = g.save; g.save = SaveData(); g.loadGame();
+        check("save/load keeps Gauntlet and golf records", g.save.gauntletBest == keep.gauntletBest && g.save.golfPlayed == keep.golfPlayed && g.save.golfHole == keep.golfHole);
+        printf("[bot] fun: %s (%d failures)\n", fails ? "FAIL" : "PASS", fails);
+        return fails ? 2 : 0;
+    }
     if (which == "postgame") {
         // after the ending: bounties, the Boss Rush, flame dyes, trophies
         setenv("WICKLIGHT_BOUNTIES", "1", 1);

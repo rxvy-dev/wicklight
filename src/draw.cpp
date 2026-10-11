@@ -11,6 +11,7 @@ void drawWorldExtras(Game& g, Renderer* R);
 void extrasLights(Game& g, Renderer* R);
 void drawPostgameNPC(Renderer* R, int who, V3 pos, float yaw, float t, const Game& g);
 void dyeColors(int dye, float t, V3& outer, V3& mid, V3& core);
+void funLights(Game& g, Renderer* R);
 // the player's flame, in Wren's dye colours
 static void drawFlameDyed(Renderer* R, V3 p, float scale, float t, bool white, int dye, float alpha = 1);
 
@@ -50,7 +51,9 @@ static void drawWick(Game& g, Renderer* R) {
     float sq = 1 - p.land * 0.18f;
     float walk = std::sin(p.walkPhase * 2.2f);
     float speed = lenXZ(p.vel);
-    M4 base = M4::translate(p.pos) * M4::rotY(p.yaw);
+    float ws = g.toy(1) ? 0.55f : 1.f;     // Toy Box: Tiny Wick
+    float bh = g.toy(0) ? 2.3f : 1.f;      // Toy Box: Big Head
+    M4 base = M4::translate(p.pos) * M4::rotY(p.yaw) * M4::scale(V3(ws, ws, ws));
     float hs = (1 - melt * 0.7f);
     V3 wax = hexColor(0xeadfc4);
     float flash = p.hurtT > 0 ? 0.6f : 0;
@@ -72,23 +75,27 @@ static void drawWick(Game& g, Renderer* R) {
         R->drawPart(PM_CUBE, base * M4::translate(V3(0.29f * s, 0.72f * hs, 0)) * M4::rotX(sw) * M4::translate(V3(0, -0.13f, 0)) * M4::scale(V3(0.1f, 0.28f, 0.1f)), T_WAX, wax * 0.92f, 0, flash, alpha);
     }
     // head
-    float headY = (0.98f + bob) * hs * sq;
-    R->drawPart(PM_CYL, base * M4::translate(V3(0, headY, 0)) * M4::scale(V3(0.42f, 0.3f * hs, 0.42f)), T_WAX, wax * 1.02f, 0, flash, alpha);
+    float headY0 = (0.98f + bob) * hs * sq;
+    float hc = headY0 + 0.15f * hs * (bh - 1);       // head centre (a big head grows upward)
+    M4 hb = base * M4::translate(V3(0, hc, 0)) * M4::scale(V3(bh, bh, bh));  // head space
+    R->drawPart(PM_CYL, hb * M4::scale(V3(0.42f, 0.3f * hs, 0.42f)), T_WAX, wax * 1.02f, 0, flash, alpha);
     // eyes
     for (int s = -1; s <= 1; s += 2)
-        R->drawPart(PM_CUBE, base * M4::translate(V3(0.09f * s, headY + 0.02f, 0.2f)) * M4::scale(V3(0.06f, 0.09f, 0.03f)), T_WHITE, hexColor(0x1a1018), 0, 0, alpha);
+        R->drawPart(PM_CUBE, hb * M4::translate(V3(0.09f * s, 0.02f, 0.2f)) * M4::scale(V3(0.06f, 0.09f, 0.03f)), T_WHITE, hexColor(0x1a1018), 0, 0, alpha);
     // hat
     int hat = (g.screen == SC_INTRO || melt > 0.3f) ? 0 : g.save.hat;
-    float lift = hatLift(hat);
-    drawHat(R, base, hat, headY, t, alpha);
+    float lift = hatLift(hat) * bh;
+    drawHat(R, hb * M4::translate(V3(0, -headY0, 0)), hat, headY0, t, alpha);
+    float headY = hc + 0.15f * (bh - 1);  // so the wick and flame sit on top of the (big) head
+    (void)headY0;
     // wick
     bool held = g.flame.st == F_HELD && !p.dead;
-    R->drawPart(PM_CUBE, base * M4::translate(V3(0, headY + 0.2f + lift, 0)) * M4::scale(V3(0.04f, 0.12f, 0.04f)), T_WHITE, held ? hexColor(0x3a2a20) : hexColor(0xff5020), held ? 0.f : 1.5f, 0, alpha);
+    R->drawPart(PM_CUBE, base * M4::translate(V3(0, headY + 0.2f + lift, 0)) * M4::scale(V3(0.04f, 0.12f, 0.04f) * (bh > 1 ? 1.5f : 1.f)), T_WHITE, held ? hexColor(0x3a2a20) : hexColor(0xff5020), held ? 0.f : 1.5f, 0, alpha);
     if (held && g.screen != SC_INTRO) {
         float sc = 1.0f;
         bool white = false;
         if (g.flame.charging) { sc = 1 + std::min(g.flame.charge, 0.75f) * 0.8f; white = g.flame.charge >= 0.75f; }
-        drawFlameDyed(R, p.pos + V3(0, headY + 0.32f + lift, 0), sc, t, white, g.save.dye, alpha);
+        drawFlameDyed(R, p.pos + V3(0, (headY + 0.32f + lift) * ws, 0), sc * ws * (bh > 1 ? 1.4f : 1.f), t, white, g.save.dye, alpha);
     }
     // overclock: a cyan afterimage trail
     if (g.ocT > 0 && !R->shadowPass) {
@@ -169,6 +176,7 @@ static void drawEnemy(Game& g, Renderer* R, const Enemy& e) {
     float t = e.anim;
     float fl = e.flash > 0 ? 0.7f : 0;
     M4 b = M4::translate(e.pos) * M4::rotY(e.yaw);
+    if (g.toy(8)) { float w = std::sin(t * 9 + e.id) * 0.22f; b = b * M4::scale(V3(1 + w, 1 - w, 1 + w)); }  // Toy Box: Jelly Enemies
     V3 eyeCol = hexColor(0xd8b0ff);
     switch (e.type) {
         case E_GLOOMLING: {
@@ -638,7 +646,7 @@ static void drawGeometry(Game& g, Renderer* R) {
     // player & flame
     if (!(g.screen == SC_ENDING && g.cineStep >= 2 && g.cineStep < 6)) drawWick(g, R);
     if (g.flame.st != F_HELD && !g.pl.dead) {
-        float sc = g.flame.charged ? 1.5f : 1.1f;
+        float sc = (g.flame.charged ? 1.5f : 1.1f) * (g.toy(7) ? 2.2f : 1.f);
         drawFlameDyed(R, g.flame.pos - V3(0, 0.15f, 0), sc, t, g.flame.charged, g.save.dye);
     }
     // projectiles
@@ -747,6 +755,7 @@ void Game::draw() {
 
     homeLights(*this, R);
     extrasLights(*this, R);
+    funLights(*this, R);
     // shadow + scene passes
     R->beginShadow(screen == SC_TITLE ? V3(0, 0, 0) : pl.pos);
     drawGeometry(*this, R);

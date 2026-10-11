@@ -17,7 +17,7 @@ static const float PLAYER_H = 1.15f;
 static const float GRAVITY = 30.f;
 static const float SIM_DT = 1.f / 120.f;
 
-enum LevelId { LV_HUB = 0, LV_WHARF, LV_CLOCK, LV_VAULTS, LV_SPIRE, LV_JUNK, LV_ENDLESS, LV_HOME, LV_CITY, LV_COUNT };
+enum LevelId { LV_HUB = 0, LV_WHARF, LV_CLOCK, LV_VAULTS, LV_SPIRE, LV_JUNK, LV_ENDLESS, LV_HOME, LV_CITY, LV_ARENA, LV_GOLF, LV_COUNT };
 
 // ------------------------------------------------------------------ input
 enum Action { A_FWD, A_BACK, A_LEFT, A_RIGHT, A_JUMP, A_DASH, A_THROW, A_WARP, A_BLOOM, A_INTERACT, A_PAUSE, A_JOURNAL, A_GRAPPLE, A_FIREWALL, A_OVERCLOCK, A_COUNT };
@@ -269,6 +269,8 @@ struct SaveData {
     int dye = 0;                                    // flame colour (0 = ember)
     int kills = 0, bestCombo = 0, bounties = 0;     // lifetime stats (trophies)
     float rushBest = 0;                             // best Boss Rush time
+    int gauntletBest = 0;                           // the Gauntlet: most waves survived
+    int golfHole = 1, golfPlayed = 0, golfScore = 0, golfAces = 0;  // Flame Golf: next hole, holes played, total vs par, holes-in-one
     int bountyDay = -1, bountyProg[3] = {0, 0, 0}, bountyDone = 0;  // the Night Board's daily bounties
     int fishCaught = 0;
     float raceBest = 0;                             // best candle-race time (0 = none)
@@ -295,7 +297,7 @@ static const int PIXEL_LINES[] = {180, 225, 270, 360, 540};
 static const int PIXEL_MODES = 5;
 
 // ------------------------------------------------------------------ screens
-enum Screen { SC_TITLE, SC_INTRO, SC_PLAY, SC_PAUSE, SC_SETTINGS, SC_CONTROLS, SC_JOURNAL, SC_ENDING, SC_VICTORY, SC_CREDITS, SC_CONFIRM_NEW, SC_HOWTO, SC_SHOP, SC_BOTSHOP, SC_CRAFT, SC_SUPPLY, SC_CHEST, SC_DYES };
+enum Screen { SC_TITLE, SC_INTRO, SC_PLAY, SC_PAUSE, SC_SETTINGS, SC_CONTROLS, SC_JOURNAL, SC_ENDING, SC_VICTORY, SC_CREDITS, SC_CONFIRM_NEW, SC_HOWTO, SC_SHOP, SC_BOTSHOP, SC_CRAFT, SC_SUPPLY, SC_CHEST, SC_DYES, SC_TOYS };
 
 struct DialogLine { std::string who; std::string text; };
 
@@ -388,7 +390,7 @@ struct Game {
     struct FireWall { V3 a, b; float t = 0, life = 6; };
     std::vector<FireWall> firewalls; float fwCd = 0;
     bool grappling = false; float ropeLen = 0; V3 ropeAnchor;
-    float worldScale() const { return ocT > 0 ? 0.3f : 1.f; }
+    float worldScale() const { return ocT > 0 ? 0.3f : (killSlowT > 0 ? 0.35f : 1.f); }
     bool fxTick(float every) const { return std::fmod(time, every) < SIM_DT; }
     void updatePowers(float dt, const InputState& in);
     void updateGrapple(float dt, const InputState& in);
@@ -419,6 +421,17 @@ struct Game {
     void rushStageEnter();
     void drawDyes(); void updateDyes(const InputState& in);
     void drawJournalPage2();
+    // --- fun forever: the Toy Box (silly modes), the Gauntlet (endless waves), Flame Golf (endless holes)
+    bool toy(int i) const { return has("toy." + std::to_string(i)); }
+    void drawToys(); void updateToys(const InputState& in);
+    int gWave = 0, gState = 0, gMod = -1, gQueue = 0, gLast = 0; float gT = 0, gSpawnT = 0;
+    std::vector<V3> pendingBlasts;
+    float killSlowT = 0;
+    int golfStrokes = 0, golfPar = 0; float golfDoneT = 0;
+    float gravityMul() const;
+    float enemySpeedMul() const;
+    void updateFunModes(float dt);
+    void enemyDied(Enemy& e);
     // --- companion bots (bought from Sprocket with embers)
     struct BotRT { V3 pos; float timer = 0; float charge = 0; float flash = 0; };
     BotRT bots[5];

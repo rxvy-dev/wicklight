@@ -54,7 +54,7 @@ static std::vector<std::string> menuItems(Game& g) {
             v.push_back("New Game"); v.push_back("How to play"); v.push_back("Settings"); v.push_back("Credits"); v.push_back("Quit");
             break;
         case SC_CONFIRM_NEW: v = {"Yes, start over", "No, go back"}; break;
-        case SC_PAUSE: v = {"Resume", "Journal", "Settings", "Return to last lantern", "How to play", "Quit to title"}; break;
+        case SC_PAUSE: v = {"Resume", "Journal", "Settings", "Return to last lantern", "How to play", "Toy Box (silly modes!)", "Quit to title"}; break;
         case SC_SETTINGS: {
             char sens[16]; snprintf(sens, sizeof(sens), "%.1f", g.settings.sensitivity);
             static const char* sh[] = {"Off", "Low", "High"};
@@ -122,6 +122,7 @@ void Game::updateMenus(float dt, const InputState& in) {
         return;
     }
     if (screen == SC_DYES) { updateDyes(in); return; }
+    if (screen == SC_TOYS) { updateToys(in); return; }
     if (screen == SC_SHOP) { updateShop(in); return; }
     if (screen == SC_BOTSHOP) { updateBotShop(in); return; }
     if (screen == SC_CRAFT) { updateCraft(in); return; }
@@ -176,7 +177,8 @@ void Game::updateMenus(float dt, const InputState& in) {
                 else if (menuSel == 2) { prevScreen = SC_PAUSE; screen = SC_SETTINGS; menuSel = 0; }
                 else if (menuSel == 3) { screen = SC_PLAY; respawnAtLantern(); }
                 else if (menuSel == 4) { prevJournalScreen = SC_PAUSE; screen = SC_HOWTO; }
-                else if (menuSel == 5) {
+                else if (menuSel == 5) { screen = SC_TOYS; shopSel = 0; }
+                else if (menuSel == 6) {
                     writeSave();
                     screen = SC_TITLE; menuSel = 0;
                     buildLevel(LV_HUB); applyFlagsToLevel(); enemies.clear(); boss = Boss();
@@ -464,6 +466,7 @@ void Game::drawHUD() {
         R->uiTextCentered(W / 2, H * 0.3f + 24 * s, toastSub, s * 1.2f, V4(0.95f, 0.9f, 0.85f, a));
     }
     drawExtrasHUD();
+    { extern void drawFunHUD(Game&); drawFunHUD(*this); }
     // death
     if (pl.dead && pl.deadT > 0.4f) R->uiTextCentered(W / 2, H * 0.45f, "your flame gutters...", s * 2, V4(1, 0.6f, 0.4f, std::min(1.f, pl.deadT - 0.4f)));
 }
@@ -682,6 +685,7 @@ void Game::drawUI() {
         case SC_HOWTO: drawHowTo(); break;
         case SC_SHOP: drawShop(); break;
         case SC_DYES: drawDyes(); break;
+        case SC_TOYS: drawToys(); break;
         case SC_BOTSHOP: drawBotShop(); break;
         case SC_CRAFT: drawCraft(); break;
         case SC_SUPPLY: drawSupply(); break;

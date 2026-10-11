@@ -23,7 +23,7 @@ void Game::spawnEnemy(EnemyType t, V3 pos, int arena) {
         case E_DECOY: e.hp = 1; e.radius = 0.32f; e.height = 1.2f; break;
         case E_AGENT: e.hp = 3; e.radius = 0.4f; e.height = 1.8f; e.cd = 1.0f; e.target = pos + V3(std::sin(e.yaw) * 5, 0, std::cos(e.yaw) * 5); break;
     }
-    if (lv.id == LV_ENDLESS) e.hp = std::ceil(e.hp * ((e.type == E_MEGABOT || e.type == E_GLOOMKING) ? std::min(enemyHpMul, 1.5f) : enemyHpMul));
+    if (lv.id == LV_ENDLESS || lv.id == LV_ARENA) e.hp = std::ceil(e.hp * ((e.type == E_MEGABOT || e.type == E_GLOOMKING) ? std::min(enemyHpMul, 1.5f) : enemyHpMul));
     e.maxHp = e.hp;
     enemies.push_back(e);
     if (arena >= 0) burst(pos + V3(0, 0.8f, 0), hexColor(0x6a3aaa), 20, 4, 0.12f, 2, 0.8f, -1);
@@ -98,6 +98,7 @@ void Game::damageEnemy(Enemy& e, float dmg, V3 from, bool charged) {
     if (e.hp <= 0) {
         e.alive = false;
         save.kills++;
+        enemyDied(e);
         bountyEvent(0, 1);
         audio::playAt(SFX_KILL, e.pos);
         burst(e.pos + V3(0, e.height * 0.5f, 0), hexColor(0x1a1028), 26, 4, 0.2f, 2, 0.9f, -2);
