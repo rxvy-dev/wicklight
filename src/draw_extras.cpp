@@ -356,13 +356,12 @@ void drawWorldExtras(Game& g, Renderer* R) {
         }
     }
     // the candle race rings
-    if (!L.race.empty()) {
+    if (!L.race.empty() && g.raceIdx >= 0) {  // the rings only appear while you're racing
         for (int i = 0; i < (int)L.race.size(); i++) {
             const RaceRing& r = L.race[i];
             bool racing = g.raceIdx >= 0;
             bool next = racing && i == g.raceIdx, after = racing && i == g.raceIdx + 1, passed = racing && i < g.raceIdx;
             if (passed) continue;
-            if (!racing && distXZ(r.pos, g.pl.pos) > 30) continue;
             V3 col = next ? hexColor(0xffd040) : (after ? hexColor(0xb08040) : hexColor(0x6a5030));
             float emis = next ? 2.5f : (racing ? 1.0f : 0.5f);
             float rr = 1.5f;

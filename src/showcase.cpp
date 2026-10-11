@@ -484,6 +484,209 @@ static int runIsland(Game& g, Renderer& R, Recorder& rec, int W, int H) {
     return 0;
 }
 
+
+// ------------------------------------------------------------------ the 1.1 update trailer (TikTok, ~30 s, SONG_CITY)
+void* scBotRoute(Game& g, int route);
+void scFeatureSave(Game& g);
+namespace {
+struct Seg {
+    const char* name; float beats;
+    std::function<void(Game&)> setup;           // fresh feature save first, then this
+    int route = -1;                             // bot route (see scBotRoute), -1 none
+    float skip = 0;                             // sim seconds to play before filming
+    std::function<bool(Game&)> until;           // ...or skip until this is true
+    CamMode cam = CM_FOLLOW; float dist = 6.0f, height = 2.2f;
+    std::vector<Caption> caps;                  // times in beats
+    std::function<void(Game&, float, InputState&)> tick;  // extra input each sim step (t < 0 while skipping)
+    std::function<float(float)> speed;
+    float flash = 0; bool hud = false;
+};
+}
+
+static std::vector<Seg> updateSegs(int W, int H) {
+    bool tall = H > W;
+    V4 gold(1, 0.82f, 0.38f, 1), white(1, 0.97f, 0.9f, 1), red(1, 0.4f, 0.35f, 1), cyan(0.5f, 0.95f, 1, 1), orange(1, 0.62f, 0.25f, 1), green(0.45f, 1, 0.6f, 1);
+    float ty = tall ? 0.2f : 0.16f, sy = ty + (tall ? 0.055f : 0.08f);
+    auto big = [&](float b0, float b1, const char* t, V4 c) { return Caption{b0, b1, t, 8, ty, c}; };
+    auto small = [&](float b0, float b1, const char* t) { return Caption{b0, b1, t, 4, sy, white}; };
+    std::vector<Seg> v;
+    Seg s;
+    // 1. the hook: Wick on a wanted poster's street, the searchlights find him
+    s = Seg{"city: spotted", 8};
+    s.setup = [](Game& g) { g.save.hat = 10; g.enterLevel(LV_CITY, 1); g.pl.pos = V3(-2, 0, 30); g.camYaw = 0.1f; };
+    s.route = 0; s.dist = 6.5f; s.height = 2.4f;
+    s.caps = {Caption{0, 3.5f, "WICKLIGHT 1.1", 9, ty, gold}, big(3.5f, 8, tall ? "THE FBI THINKS\nWICK IS\nTHE HACKER" : "THE FBI THINKS WICK IS THE HACKER", red)};
+    v.push_back(s);
+    // 2. up the tower's fire escapes
+    s = Seg{"city: tower climb", 6};
+    s.setup = [](Game& g) { g.save.hat = 10; g.setFlag("city.g1"); g.enterLevel(LV_CITY, 2); g.pl.pos = V3(3, 0, 88); };
+    s.route = 1; s.skip = 0.6f; s.dist = 7.5f; s.height = 1.4f; s.flash = 0.5f;
+    s.caps = {big(0, 6, tall ? "NEW LEVEL:\nLUMEN CITY" : "NEW LEVEL: LUMEN CITY", cyan), small(0.5f, 6, "searchlights, FBI agents, a rooftop escape")};
+    v.push_back(s);
+    // 3. Firewall on the helipad
+    s = Seg{"city: firewall holdout", 6};
+    s.setup = [](Game& g) { g.save.hat = 8; g.setFlag("ab.firewall"); g.setFlag("city.g1"); g.setFlag("city.arena"); g.enterLevel(LV_CITY, 4); };
+    s.route = 2; s.skip = 7.0f; s.dist = 7.0f; s.height = 3.0f;
+    s.tick = [](Game& g, float t, InputState& in) { if (t >= 0.25f && t < 0.26f) { in.pressed[A_FIREWALL] = true; in.down[A_FIREWALL] = true; } };
+    s.caps = {big(0, 6, tall ? "NEW POWER:\nFIREWALL" : "NEW POWER: FIREWALL", orange), small(0.5f, 6, "a wall of fire nothing gets through")};
+    v.push_back(s);
+    // 4. Ember Grapple across the broken bridge
+    s = Seg{"hub: grapple", 6};
+    s.setup = [](Game& g) { g.save.hat = 9; g.setFlag("ab.grapple"); g.enterLevel(LV_HUB, 0); g.pl.pos = g.pl.safePos = V3(0, 0, 41); g.camYaw = g.pl.yaw = 0; g.camTarget = g.pl.pos + V3(0, 1.65f, 0); };
+    s.route = 3; s.skip = 0.25f; s.dist = 5.5f; s.height = 1.6f;
+    s.tick = [](Game& g, float t, InputState& in) { if (t > 0.3f && g.flame.st == F_HOVER && g.flame.anchored >= 0) { in.down[A_GRAPPLE] = true; if (!g.grappling) in.pressed[A_GRAPPLE] = true; } };
+    s.caps = {big(0, 6, tall ? "NEW POWER:\nEMBER GRAPPLE" : "NEW POWER: EMBER GRAPPLE", gold), small(0.5f, 6, "swing from hooks on a rope of fire")};
+    v.push_back(s);
+    // 5. Overclock: the world slows down, Wick doesn't
+    s = Seg{"wharf: overclock", 6};
+    s.setup = [](Game& g) {
+        g.save.hat = 6; g.enterLevel(LV_WHARF, 1); g.pl.pos = V3(0, 0, 40); g.camYaw = 0;
+        for (V3 p : {V3(-3, 0.3f, 46), V3(3, 0.3f, 47), V3(0, 0.3f, 50), V3(-5, 0.3f, 52), V3(4, 0.3f, 53)}) g.spawnEnemy(E_GLOOMLING, p, -1);
+        g.spawnEnemy(E_TARBELL, V3(6, 0, 54), -1);
+        g.ocCharge = 1;
+    };
+    s.route = 4; s.skip = 0.4f; s.dist = 6.0f; s.height = 2.2f;
+    s.tick = [](Game& g, float t, InputState& in) { (void)g; if (t >= 0.2f && t < 0.21f) in.pressed[A_OVERCLOCK] = true; };
+    s.caps = {big(0, 6, tall ? "NEW POWER:\nOVERCLOCK" : "NEW POWER: OVERCLOCK", cyan), small(0.5f, 6, "slow down time - everyone but you")};
+    v.push_back(s);
+    // 6. GL1TCH's hacking puzzle
+    s = Seg{"clock: hacking puzzle", 7};
+    s.setup = [](Game& g) { g.save.hat = 7; g.save.flags.erase("boss.1"); g.enterLevel(LV_CLOCK, 1); g.pl.pos = g.pl.safePos = V3(0, 18, 170); g.camYaw = 0; for (auto& e : g.enemies) e.alive = false; };
+    s.route = 5; s.skip = 0.3f; s.dist = 6.5f; s.height = 2.6f;
+    s.speed = [](float x) { return x < 0.45f ? 1.8f : 1.0f; };
+    s.caps = {big(0, 7, tall ? "HACK THE\nTERMINALS" : "HACK THE TERMINALS", green), small(0.5f, 7, "watch the order, burn them in the same order")};
+    v.push_back(s);
+    // 7. GL1TCH, rebuilt: teleports, code bolts, fake Wicks
+    s = Seg{"clock: GL1TCH", 7};
+    s.setup = [](Game& g) {
+        g.save.hat = 7; g.save.flags.erase("boss.1"); g.enterLevel(LV_CLOCK, 2);
+        g.pl.pos = g.lv.boss.center + V3(-3, 0, -9); g.camYaw = 0.3f; g.startBoss();
+        g.boss.hp = g.boss.maxHp = 999; g.boss.phase = 1;
+    };
+    s.route = 6; s.skip = 9.0f; s.cam = CM_BOSS; s.dist = 8.0f; s.height = 3.0f; s.flash = 0.4f;
+    s.caps = {big(0, 7, tall ? "GL1TCH IS\nBACK" : "GL1TCH IS BACK", green), small(0.5f, 7, "teleports, viruses, fake Wicks")};
+    v.push_back(s);
+    // 8. side jobs: the candle race and fishing
+    s = Seg{"hub: candle race", 4};
+    s.setup = [](Game& g) { g.save.hat = 4; g.enterLevel(LV_HUB, 0); g.pl.pos = g.pl.safePos = V3(16, 0, 12); g.startRace(); g.raceIdx = 1; };
+    s.skip = 0.2f; s.dist = 6.0f; s.height = 2.0f; s.hud = true;
+    s.tick = [](Game& g, float, InputState& in) {
+        if (g.raceIdx < 0) return;
+        const RaceRing& r = g.lv.race[g.raceIdx];
+        V3 d = flatXZ(r.pos - g.pl.pos);
+        if (lenXZ(d) > 0.01f) g.camYaw = std::atan2(d.x, d.z);
+        in.moveY = 1;
+        if (g.pl.grounded && g.pl.dashCd <= 0 && lenXZ(d) > 5) { in.pressed[A_DASH] = true; in.down[A_DASH] = true; }
+        if (r.high && lenXZ(d) < 3.2f && g.pl.grounded) { in.pressed[A_JUMP] = true; in.down[A_JUMP] = true; } else if (r.high) in.down[A_JUMP] = true;
+    };
+    s.caps = {big(0, 4, tall ? "CANDLE\nRACES" : "CANDLE RACES", gold)};
+    v.push_back(s);
+    s = Seg{"wharf: fishing", 5};
+    s.setup = [](Game& g) {
+        g.save.hat = 3; g.setFlag("quest.carp"); g.save.fishCaught = 2;
+        g.enterLevel(LV_WHARF, 0); g.pl.pos = g.pl.safePos = V3(1.8f, 0, 7.5f);
+        for (int i = 0; i < (int)g.lv.talkers.size(); i++) if (g.lv.talkers[i].who == 16) { g.talk(i); g.camYaw = g.lv.talkers[i].yaw - 0.5f; break; }
+    };
+    s.until = [](Game& g) { return g.fishState == 2 && g.fishT > 0.05f; };
+    s.dist = 4.5f; s.height = 1.6f; s.hud = true;
+    s.tick = [](Game& g, float t, InputState& in) {
+        if (t < 0) return;
+        if (g.fishState == 2 && t > 0.2f) in.pressed[A_INTERACT] = true;
+        if (g.fishState == 3) {
+            if (g.fishT < 0.02f) { float sp = 2.2f + 0.8f * g.fishKind; g.fishZone = 0.5f - 0.5f * std::cos(1.1f * sp); }
+            if (std::fabs(g.fishNeedle - g.fishZone) < g.fishZoneW * 0.25f && g.fishT > 0.5f) in.pressed[A_INTERACT] = true;
+        }
+    };
+    s.caps = {big(0, 5, tall ? "FISHING" : "FISHING", cyan), small(0.5f, 5, "catch the Golden Carp")};
+    v.push_back(s);
+    // 9. end card
+    s = Seg{"end card", 7};
+    s.setup = [](Game& g) { g.save.hat = 4; g.enterLevel(LV_HUB, 0); g.pl.pos = g.pl.safePos = V3(0, 0, -13); g.camYaw = PI; };
+    s.cam = CM_ORBIT; s.dist = 5.0f; s.height = 1.2f; s.flash = 0.6f;
+    s.caps = {Caption{0, 7, "WICKLIGHT 1.1", 9, tall ? 0.16f : 0.14f, gold},
+              Caption{0.6f, 7, tall ? "+ 10 HATS\n+ SIDE QUESTS" : "+ 10 HATS + SIDE QUESTS", 5, tall ? 0.24f : 0.25f, white},
+              Caption{1.5f, 7, tall ? "FREE ON LINUX" : "FREE ON LINUX", 7, tall ? 0.70f : 0.70f, green},
+              Caption{1.5f, 7, "github.com/rxvy-dev/wicklight", tall ? 4 : 4, tall ? 0.76f : 0.79f, white}};
+    v.push_back(s);
+    return v;
+}
+
+static int runUpdate(Game& g, Renderer& R, Recorder& rec, int W, int H) {
+    const float spb = 60.f / 124.f;  // SONG_CITY
+    std::vector<Seg> segs = updateSegs(W, H);
+    float now = 0, flash = 0;
+    std::vector<Caption> caps;
+    void* bot = nullptr;
+    FilmCam fc;
+    int order = 0;
+    for (auto& s : segs) {
+        if (bot) { scBotFree(bot); bot = nullptr; }
+        scFeatureSave(g);
+        audio::setVolumes(0.85f, 0.0f, 0.9f);
+        g.godMode = true;
+        if (s.setup) s.setup(g);
+        g.dialog.clear(); g.screen = SC_PLAY; g.letterbox = 0; g.camOverride = 0;
+        g.hideHUD = !s.hud;
+        R.uiScaleOverride = s.hud ? (H > W ? 4 : 3) : 0;
+        g.overlayUI = [&]() { drawBars(R); drawCaptions(R, caps, now); drawFlash(R, flash); };
+        if (s.route >= 0) bot = scBotRoute(g, s.route);
+        std::string sec;
+        auto simStep = [&](float t) {
+            InputState in;
+            if (bot) {
+                bool ok = scBotStep(bot, in, sec);
+                if (!ok && g.dialog.empty()) { scBotFree(bot); bot = nullptr; in = InputState(); }
+            }
+            if (s.tick) s.tick(g, t, in);
+            g.update(SIM_DT, in);
+            g.dialog.clear();
+            if (g.screen != SC_PLAY) g.screen = SC_PLAY;
+        };
+        for (int k = 0; k < (int)(s.skip * 120); k++) simStep(-1);
+        if (s.until) for (int k = 0; k < 120 * 12 && !s.until(g); k++) simStep(-1);
+        float dur = s.beats * spb;
+        int nf = (int)std::lround(dur * FPS);
+        caps.clear();
+        for (auto cp : s.caps) { cp.t0 *= spb; cp.t1 *= spb; caps.push_back(cp); }
+        rec.begin(order++, s.name);
+        fc.reset();
+        float acc = 0;
+        for (int f = 0; f < nf; f++) {
+            float ct = f / FPS, ck = ct / dur;
+            float sp = s.speed ? s.speed(ck) : 1.f;
+            acc += 2 * sp;
+            while (acc >= 1) { acc -= 1; simStep(ct); }
+            float vdt = sp / FPS;
+            R.time += vdt; R.updateParticles(vdt);
+            g.screenT += vdt;
+            if (!s.hud) g.toastT = g.statusT = 0;
+            g.areaTitleT = 0;
+            g.respawnFade = std::max(0.f, g.respawnFade - vdt * 1.5f);
+            g.flashOverlay = std::max(0.f, g.flashOverlay - vdt * 1.5f);
+            g.glitch = std::max(0.f, g.glitch - vdt * 1.6f);
+            g.bloomFlash = std::max(0.f, g.bloomFlash - vdt * 2.5f); g.bloomR += vdt * 14;
+            V3 se = g.camEye, st = g.camTarget;
+            if (s.cam == CM_BOSS && g.boss.active) { fc.boss(g, vdt, s.dist, s.height); g.camEye = fc.eye; g.camTarget = fc.tgt; }
+            else if (s.cam == CM_ORBIT) {
+                if (!fc.init) { fc.yaw = g.camYaw; fc.tgt = g.pl.pos + V3(0, 1.3f, 0); fc.init = true; }
+                float a = fc.yaw + PI - 0.7f + ck * 1.2f;
+                g.camEye = fc.tgt + V3(std::sin(a) * s.dist, s.height, std::cos(a) * s.dist); g.camTarget = fc.tgt + V3(0, 0.3f, 0);
+            } else { fc.follow(g, vdt, s.dist, s.height, 0.5f); g.camEye = fc.eye; g.camTarget = fc.tgt; }
+            audio::setListener(g.camEye, norm(cross(norm(g.camTarget - g.camEye), V3(0, 1, 0))));
+            now = ct; flash = s.flash * std::max(0.f, 1 - ct / 0.25f);
+            g.letterbox = 0;
+            EnvSave sv = brighten(g);
+            g.draw();
+            unbrighten(g, sv);
+            rec.frame();
+            g.camEye = se; g.camTarget = st;
+        }
+        rec.end();
+    }
+    if (bot) scBotFree(bot);
+    return 0;
+}
+
 // ------------------------------------------------------------------ the music bed: adventure (FINAL), a beat of silence, island (JUNK)
 static int runMusic(const std::string& dir) {
     audio::setVolumes(0.85f, 0.62f, 0.0f);
@@ -514,6 +717,7 @@ int runShowcase(Game& g, Renderer& R, const std::string& out, int W, int H) {
     Recorder rec(R, out, W, H);
     if (part == "campaign" || part == "log") return runCampaign(g, R, rec, W, H, part == "log");
     if (part == "intro") return runIntro(g, R, rec, W, H);
+    if (part == "update") { gLook.bars = false; gLook.exposure = 1.5f; return runUpdate(g, R, rec, W, H); }
     return runIsland(g, R, rec, W, H);
 }
 

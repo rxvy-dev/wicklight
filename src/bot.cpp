@@ -461,6 +461,23 @@ static void freshFeatureSave(Game& g) {
     for (const char* f : {"talk.marrow0", "talk.fbi", "tut.done", "ab.warp", "ab.bloom", "ab.sunflare", "ab.overclock", "heart.0", "heart.1", "boss.0", "boss.1", "npc.3", "npc.4", "npc.8"}) g.setFlag(f);
 }
 
+// ---- used by the update-trailer recorder
+void scFeatureSave(Game& g) { freshFeatureSave(g); }
+void* scBotRoute(Game& g, int route) {
+    Bot* b = new Bot(g);
+    switch (route) {
+        case 0: b->cmds = {G(0, 0, 30), F(18), G(0, 0, 44), F(18), G(0, 0, 56), F(18)}; break;
+        case 1: b->cmds = {G(6, 0, 94), TW(6, 6.6f, 98.6f), TW(-6.5f, 14.6f, 98.6f), TW(0, 16.4f, 101.2f), G(0, 14, 106), F(30)}; break;
+        case 2: b->cmds = {HOLDP()}; break;
+        case 3: b->cmds = {T(0, 2.2f, 57.5f)}; break;
+        case 4: b->cmds = {F(30)}; break;
+        case 5: b->cmds = {HACKP(0)}; break;
+        case 6: b->cmds = {BOSSF()}; break;
+        default: break;
+    }
+    return b;
+}
+
 int runFeatureTest(Game& g, const std::string& which) {
     if (which == "city") {
         // Lumen City: from the Hollow's east bridge to the helipad rescue and back
