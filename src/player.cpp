@@ -23,7 +23,9 @@ void Game::burst(V3 p, V3 col, int n, float speed, float size, int kind, float l
 
 // ------------------------------------------------------------------ camera
 void Game::updateCamera(float dt) {
-    camPitch = clampf(camPitch, -1.25f, 0.85f);
+    // on Wick's Island you can look (almost) straight down and up, for building
+    if (lv.id == LV_HOME && vox.active) camPitch = clampf(camPitch, -1.53f, 1.1f);
+    else camPitch = clampf(camPitch, -1.25f, 0.85f);
     V3 fwd(std::sin(camYaw) * std::cos(camPitch), std::sin(camPitch), std::cos(camYaw) * std::cos(camPitch));
     V3 right(-std::cos(camYaw), 0, std::sin(camYaw));
     float wantDist = camDist;
