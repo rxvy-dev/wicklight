@@ -227,20 +227,7 @@ void buildHub(Level& L, Game& g) {
     b.spawn(V3(8.5f, 0, 0), 0);   // 6: back from the Endless Dark
     b.spawn(V3(-8.5f, 0, 0), 0);   // 7: back from Wick's Island
 
-    // ---- east bridge to Lumen City (the FBI level)
-    b.slab(36, 9, 56, 15, 0, T_PLANK, T_DARKWOOD, 0.5f);
-    for (float x = 38; x < 56; x += 4.5f) { b.pillar(x, 9.4f, -6, 0, 0.35f, T_STONEBRICK); b.pillar(x, 14.6f, -6, 0, 0.35f, T_STONEBRICK); }
-    b.rail(V3(36, 0, 9.1f), V3(51, 0, 9.1f), 1.0f); b.rail(V3(36, 0, 14.9f), V3(51, 0, 14.9f), 1.0f);
-    b.arch(V3(52, 0, 12), 4.4f, 4.6f, 1, T_BRICK, false);
-    L.decor.emis = 2.2f;
-    L.decor.color = hexColor(0xff3030); L.decor.cube(M4::translate(V3(52, 5.9f, 10.2f)) * M4::scale(V3(0.5f, 0.4f, 1.2f)), T_WHITE);
-    L.decor.color = hexColor(0x3060ff); L.decor.cube(M4::translate(V3(52, 5.9f, 13.8f)) * M4::scale(V3(0.5f, 0.4f, 1.2f)), T_WHITE);
-    L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
-    b.light(V3(52, 5, 10.5f), 7, hexColor(0xff3030), 0.9f); b.light(V3(52, 5, 13.5f), 7, hexColor(0x3060ff), 0.9f);
-    b.exit(AABB(V3(52.6f, 0, 10), V3(55, 4, 14)), LV_CITY, 0, "boss.1", "Police barricade. (Beat GL1TCH in the Clockwood first - then the FBI comes looking for YOU)", "To Lumen City");
-    b.hint(AABB(V3(37, -1, 9), V3(52, 3, 15)), "LUMEN CITY. Ever since GL1TCH, the FBI has been hunting 'the hacker'... and the posters have YOUR face.", "boss.1", "fbi.done");
-    b.hint(AABB(V3(37, -1, 9), V3(52, 3, 15)), "A barricade blocks the road to Lumen City.", "", "boss.1");
-    b.spawn(V3(46, 0, 12), -PI / 2);   // 8: back from Lumen City
+    b.spawn(V3(10, 0, 8), -PI / 2);   // 8: (old saves) the plaza
     if (g.has("boss.1")) {  // WANTED poster
         L.decor.color = hexColor(0xe8d8a8); L.decor.cube(M4::translate(V3(19.93f, 2.6f, 18)) * M4::scale(V3(0.06f, 1.6f, 1.2f)), T_WHITE);
         L.decor.color = hexColor(0x3a2010); L.decor.cube(M4::translate(V3(19.9f, 3.15f, 18)) * M4::scale(V3(0.06f, 0.18f, 0.9f)), T_WHITE);
@@ -558,6 +545,20 @@ void buildClock(Level& L, Game&) {
     b.solid(AABB(V3(-4, 12, 236), V3(4, 18, 242)), T_TILEFLOOR, T_TILEFLOOR);
     b.exit(AABB(V3(-2.5f, 18, 238), V3(2.5f, 22, 242)), LV_HUB, 2, "heart.1", "Take the Beacon-Heart first - it holds your next power.", "Return to Lumen Hollow");
     b.hint(AABB(V3(-18, 17, 200), V3(18, 26, 236)), "BURN the 3 glowing SERVERS to crash GL1TCH's firewall, then BURN GL1TCH!", "", "boss.1");
+    // GL1TCH's backdoor: once he's beaten, his trail leads to Lumen City (the FBI level)
+    b.solid(AABB(V3(18, 12, 213), V3(27, 18, 223)), T_TILEFLOOR, T_TILEFLOOR);
+    b.wall(18, 212.4f, 27, 213, 18, 22, T_STONEBRICK); b.wall(18, 223, 27, 223.6f, 18, 22, T_STONEBRICK); b.wall(27, 213, 27.6f, 223, 18, 23, T_STONEBRICK);
+    b.arch(V3(24.5f, 18, 218), 4.4f, 4.6f, 1, T_BRICK, false);
+    L.decor.emis = 1.6f; L.decor.color = hexColor(0x60ff90);
+    L.decor.cube(M4::translate(V3(24.5f, 24.0f, 218)) * M4::scale(V3(0.2f, 1.0f, 5.5f)), T_CODE, 2);
+    L.decor.emis = 2.2f;
+    L.decor.color = hexColor(0xff3030); L.decor.cube(M4::translate(V3(24.5f, 23.0f, 215.6f)) * M4::scale(V3(0.4f, 0.4f, 0.6f)), T_WHITE);
+    L.decor.color = hexColor(0x3060ff); L.decor.cube(M4::translate(V3(24.5f, 23.0f, 220.4f)) * M4::scale(V3(0.4f, 0.4f, 0.6f)), T_WHITE);
+    L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
+    b.light(V3(23, 21, 218), 8, hexColor(0x8060ff), 1.0f);
+    b.exit(AABB(V3(25, 18, 215.8f), V3(26.5f, 22, 220.2f)), LV_CITY, 0, "boss.1", "GL1TCH's backdoor is locked. Beat him first!", "Follow GL1TCH's trail to Lumen City");
+    b.hint(AABB(V3(18, 17, 213), V3(25, 23, 223)), "GL1TCH's backdoor. His trail leads to LUMEN CITY - where the FBI is hunting 'the hacker'... and the posters have YOUR face.", "boss.1", "fbi.done");
+    b.spawn(V3(21.5f, 18, 218), -PI / 2);  // 3: back from Lumen City
 
     b.emitter(AABB(V3(-15, 1, 0), V3(15, 12, 200)), 0, 14);
     // GL1TCH's hack has crept into the wood: screens of scrolling code bolted to rocks and trunks, and falling data

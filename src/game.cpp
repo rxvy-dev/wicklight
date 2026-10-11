@@ -364,7 +364,7 @@ void Game::talk(int ti) {
             L = {{"MARROW", "Wick! Have you SEEN the posters? 'WANTED: THE HACKER'. With YOUR face on them!"},
                  {"MARROW", "GL1TCH must have rerouted his trail to you before he went offline. The FBI is in Lumen City, hunting for 'a small, warm suspect'."},
                  {"MARROW", "You don't have to go. But Sprocket says he's built you something special, and it's waiting at the city's helipad."},
-                 {"MARROW", "The road to the city is the bridge EAST of the plaza. Mind the searchlights."}};
+                 {"MARROW", "GL1TCH left a BACKDOOR in his arena in the Clockwood - a door on the east side. It leads straight to the city. Mind the searchlights."}};
             setFlag("talk.fbi");
         } else if (has("hub.spire")) {
             L = {{"MARROW", "The Spire door is open. I can feel the cold pouring down from it."},
@@ -1038,6 +1038,8 @@ void Game::update(float dt, const InputState& in) {
                     case 1: q.color = hexColor(0xff8a3a); q.vel = V3(arng.range(-0.3f, 0.3f), arng.range(0.6f, 1.5f), arng.range(-0.3f, 0.3f)); q.size = 0.05f; q.life = 3; q.kind = 3; q.alpha = 1; break;
                     case 2: q.color = lv.env.fogColor * 1.6f; q.vel = V3(arng.range(-0.3f, 0.3f), 0.05f, arng.range(-0.3f, 0.3f)); q.size = 1.4f; q.grow = 0.3f; q.life = 5; q.kind = 2; q.alpha = 0.35f; break;
                     case 3: q.color = hexColor(0x8a8090); q.vel = V3(arng.range(-0.3f, 0.3f), -0.6f, arng.range(-0.3f, 0.3f)); q.size = 0.05f; q.life = 6; q.kind = 0; q.alpha = 1; break;
+                    case 5: q.color = hexColor(0x50ff90); q.vel = V3(0, arng.range(-4.5f, -2.5f), 0); q.size = 0.07f; q.life = 2.5f; q.kind = 3; q.alpha = 1; break;  // falling data
+                    case 6: q.color = hexColor(0x9ab0d0); q.vel = V3(0.4f, -14, 0.2f); q.size = 0.04f; q.life = 1.2f; q.kind = 0; q.alpha = 0.7f; break;  // city rain
                     default: q.color = hexColor(0xb0a0ff); q.vel = V3(0, 0.3f, 0); q.size = 0.05f; q.life = 4; q.kind = 3; q.alpha = 1; break;
                 }
                 q.maxLife = q.life;

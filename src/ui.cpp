@@ -428,8 +428,8 @@ void Game::drawExtrasHUD() {
         R->uiRect(W / 2 - 40 * s, H * 0.14f + 18 * s, 80 * s * clampf(ocT / 4.5f, 0, 1), 2 * s, C4(0x60e0ff));
     }
     // Lumen City: alarm and the helipad countdown
-    if (lv.id == LV_CITY) {
-        float y = 44 * s;
+    if (lv.id == LV_CITY || !lv.searchlights.empty()) {
+        float y = (lv.id == LV_ENDLESS ? 58 : 44) * s;
         if (alarmT > 0) {
             bool on = std::fmod(t * 3, 1.f) < 0.6f;
             R->uiTextCentered(W / 2, y, lv.holdout.active ? "!! FBI ASSAULT !!" : "!! SPOTTED !!", s * 1.6f, on ? C4(0xff4040) : C4(0x4060ff));
@@ -607,7 +607,7 @@ void Game::drawUI() {
                 side += has("quest.catdone") ? "[x] Mira's cat   " : (has("quest.cat") ? "[ ] Mira's cat   " : "");
                 side += has("quest.fenndone") ? "[x] Fenn's braziers   " : (has("quest.fenn") ? "[ ] Fenn's braziers   " : "");
                 side += has("quest.carpdone") ? "[x] Golden Carp   " : (has("quest.carp") ? "[ ] Golden Carp   " : "");
-                side += has("fbi.done") ? "[x] Lumen City" : (has("boss.1") ? "[ ] Lumen City (east bridge)" : "");
+                side += has("fbi.done") ? "[x] Lumen City" : (has("boss.1") ? "[ ] Lumen City (GL1TCH's backdoor, Clockwood)" : "");
                 if (save.raceBest > 0) { char rb[48]; snprintf(rb, sizeof(rb), "   Race best %.1fs", save.raceBest); side += rb; }
                 R->uiText(x, y, wrap(R, side, s, W - 40 * s), s, COL_DIM); y += 14 * s;
             }

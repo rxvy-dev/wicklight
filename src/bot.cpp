@@ -480,13 +480,14 @@ void* scBotRoute(Game& g, int route) {
 
 int runFeatureTest(Game& g, const std::string& which) {
     if (which == "city") {
-        // Lumen City: from the Hollow's east bridge to the helipad rescue and back
+        // Lumen City: through GL1TCH's backdoor in the Clockwood, to the helipad rescue and home
         freshFeatureSave(g);
         g.godMode = getenv("WICKLIGHT_MORTAL") == nullptr;
-        g.enterLevel(LV_HUB, 3);
+        g.setFlag("clock.g2");
+        g.enterLevel(LV_CLOCK, 2);
         g.dialog.clear();
         Bot bot(g);
-        bot.cmds = {N("CITY: east bridge"), G(42, 0, 6), G(44, 0, 12), G(55, 0, 12), EL(LV_CITY),
+        bot.cmds = {N("CITY: GL1TCH's backdoor"), G(0, 18, 201), G(0, 18, 210), G(19, 18, 218), G(26, 18, 218), EL(LV_CITY),
                     N("CITY: alley"), G(0, 0, 8), F(14), G(0, 0, 20),
                     N("CITY: main street"), G(0, 0, 30), F(18), G(0, 0, 44), F(18), G(0, 0, 56), F(18), G(0, 0, 60),
                     N("CITY: hacked barricade"), HACKP(0), E("city.g1"), G(0, 0, 74), F(22),

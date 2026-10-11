@@ -17,8 +17,11 @@ void buildEndless(Level& L, Game& g) {
     LB b(L);
     int depth = std::max(1, g.save.endlessDepth);
     Rng r(hash32((uint32_t)depth * 7919u + 13u));
-    const Theme& th = THEMES[(depth - 1) % 5];
-    char nm[64]; snprintf(nm, sizeof(nm), "The Endless Dark - Depth %d", depth);
+    // now and then (rarely) a depth opens onto Lumen City in the middle of an FBI raid
+    bool city = depth >= 4 && depth % 5 != 0 && hash32((uint32_t)depth * 2654435761u + 99u) % 7 == 0;
+    static const Theme CITY = {0x050916, 0x1f2a4e, 0x111a30, V3(0.16f, 0.18f, 0.28f), T_ASPHALT, T_BRICK, T_BRICK, 0xffd0a0, SONG_CITY, "Lumen City"};
+    const Theme& th = city ? CITY : THEMES[(depth - 1) % 5];
+    char nm[64]; snprintf(nm, sizeof(nm), city ? "The Endless Dark - Depth %d: FBI RAID" : "The Endless Dark - Depth %d", depth);
     L.name = nm;
     L.song = th.song;
     L.env.skyTop = hexColor(th.skyTop); L.env.skyHorizon = hexColor(th.skyHor);
@@ -39,6 +42,7 @@ void buildEndless(Level& L, Game& g) {
         if (depth >= 4) pool.push_back(E_KNIGHT);
         if (depth >= 6) pool.push_back(E_WRAITH);
         if (depth >= 8) pool.push_back(E_KNIGHT);
+        if (city) pool = {E_AGENT, E_AGENT, E_DRONE, E_VIRUS, E_RAT};
         return pool[r.irange(0, (int)pool.size() - 1)];
     };
 
@@ -47,7 +51,7 @@ void buildEndless(Level& L, Game& g) {
     b.spawn(V3(0, 0, -1), 0);
     b.exit(AABB(V3(-3, -1, -7.5f), V3(3, 3, -5.5f)), LV_HUB, 6, "", "", "Retreat to Lumen Hollow");
     b.lantern(V3(4, 0, 4), 0);
-    char hint[96]; snprintf(hint, sizeof(hint), "DEPTH %d.  Reach the portal at the end. Best so far: %d", depth, g.save.endlessBest);
+    char hint[96]; snprintf(hint, sizeof(hint), city ? "DEPTH %d: an FBI RAID in Lumen City! Dodge the searchlights. Best so far: %d" : "DEPTH %d.  Reach the portal at the end. Best so far: %d", depth, g.save.endlessBest);
     b.hint(AABB(V3(-6, -1, -5), V3(6, 4, 4)), hint);
     float z = 8, y = 0;
     R(0, V3(0, 0, 6));
@@ -156,6 +160,15 @@ void buildEndless(Level& L, Game& g) {
                 z += 14; y = ny;
             } break;
         }
+        // city depths: office towers along the route, and a searchlight sweeping some stretches
+        if (city) {
+            for (int sd = -1; sd <= 1; sd += 2) {
+                float h = 14 + 10 * hashf(s, sd, depth);
+                L.decor.box(AABB(V3(sd * 15.f - 4, y - 12, z - 14), V3(sd * 15.f + 4, y + h, z)), T_OFFICE, 0.25f, T_TILEFLOOR);
+            }
+            if (s % 2 == 1) L.searchlights.push_back({V3(-5, y, z - 10), V3(5, y, z - 3), 6.5f + s * 0.4f, 0.3f * s, 3.0f, V3()});
+            if (s > 0) L.reinforce.push_back(V3(0, y, z - 2));
+        }
         // decoration between segments
         if (r.f() < 0.5f) b.light(V3(r.f() < 0.5f ? -4.f : 4.f, y + 3, z - 2), 9, lightCol, 0.6f);
     }
@@ -185,7 +198,7 @@ void buildEndless(Level& L, Game& g) {
         b.light(V3(0, y + 3, z + 7), 10, lightCol, 1.2f);
         R(0, V3(0, y, z + 4)); R(0, V3(0, y, z + 8.2f));
     }
-    b.emitter(AABB(V3(-12, y - 2, 0), V3(12, y + 8, z + 40)), 4, 6);
+    b.emitter(AABB(V3(-12, y - 2, 0), V3(12, y + 8, z + 40)), city ? 6 : 4, city ? 30 : 6);
 }
 
 void Game::completeEndlessLevel() {

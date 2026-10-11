@@ -77,7 +77,7 @@ void buildCity(Level& L, Game& g) {
     tower(b, 4, -8, 16, 22, 12, T_OFFICE);
     b.wall(-4, -8.6f, 4, -8, 0, 8, T_BRICK);
     b.spawn(V3(0, 0, -2), 0);
-    b.exit(AABB(V3(-3, -1, -8), V3(3, 3, -6)), LV_HUB, 8, "", "", "Back to Lumen Hollow");
+    b.exit(AABB(V3(-3, -1, -8), V3(3, 3, -6)), LV_CLOCK, 3, "", "", "Back through GL1TCH's backdoor (the Clockwood)");
     b.hint(AABB(V3(-4, -1, -6), V3(4, 4, 8)), "WANTED: 'THE HACKER'. The FBI thinks it's YOU! Searchlights sweep the streets - if one finds you, agents come running.");
     b.hint(AABB(V3(-4, -1, 8), V3(4, 4, 22)), "Sprocket radioed: 'BEEP. Get to the HELIPAD on the tower at the north end. I am bringing the chopper.'");
     for (int i = 0; i < 3; i++) wantedPoster(b, V3(-3.97f, 2.4f, 2 + i * 6), PI / 2);
@@ -214,7 +214,7 @@ void buildCity(Level& L, Game& g) {
     L.holdout.pad = V3(0, 14, 155);
     L.holdout.spawns = {V3(-10, 14, 146), V3(10, 14, 146), V3(-10, 14, 165), V3(10, 14, 165), V3(0, 14, 166)};
     b.hint(AABB(V3(-11, 13, 141), V3(11, 20, 167)), "HOLD OUT on the helipad until Sprocket's chopper arrives!", "", "city.holdout");
-    b.exit(AABB(V3(-2.5f, 14, 158), V3(2.5f, 18, 162)), LV_HUB, 8, "pw.grapple", "Grab the package Sprocket dropped first!", "Fly home with Sprocket");
+    b.exit(AABB(V3(-2.5f, 14, 158), V3(2.5f, 18, 162)), LV_HUB, 4, "pw.grapple", "Grab the package Sprocket dropped first!", "Fly home with Sprocket");
     if (g.has("city.holdout") && !g.has("pw.grapple")) b.pickup(PK_POWER, V3(0, 15.2f, 151), 2, "pw.grapple");
 
     b.emitter(AABB(V3(-20, 0, -8), V3(20, 30, 170)), 6, 40);

@@ -407,7 +407,7 @@ void Game::spotted(V3 where) {
 }
 
 void Game::updateCity(float dt) {
-    if (lv.id != LV_CITY) { alarmT = 0; return; }
+    if (lv.id != LV_CITY && lv.searchlights.empty()) { alarmT = 0; return; }
     alarmT = std::max(0.f, alarmT - dt);
     for (auto& s : lv.searchlights) {
         float u = 0.5f - 0.5f * std::cos(TAU * (time / s.period + s.phase));
