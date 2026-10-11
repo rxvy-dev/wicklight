@@ -86,18 +86,19 @@ There aren't enough embers in one clean run to buy everything, so playing well p
 
 ## Install
 
-**From source** (any distro; needs a C++ compiler and SDL2):
+**From source** (any distro; needs git, a C++ compiler and SDL2):
 ```sh
-tar xzf wicklight-source.tar.gz && cd wicklight
+git clone https://github.com/rxvy-dev/wicklight
+cd wicklight
 ./build.sh run        # build and play right away
-./build.sh install    # add the `wicklight` command + app-menu entry (~/.local, no root)
+./build.sh install    # add Wicklight to your app launcher (~/.local, no root)
 ```
 Wicklight then appears in your app launcher (the menu entry uses the full path, so it works without any PATH setup).
 To also type `wicklight` in a terminal, add `~/.local/bin` to your PATH:
 `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc` (or your shell's rc file).
-`./build.sh uninstall` removes it and keeps your saves.
+`./build.sh uninstall` removes it and keeps your saves. To update later: `git pull && ./build.sh install`.
 
-**AppImage** (no build needed): `chmod +x Wicklight-*.AppImage && ./Wicklight-*.AppImage`
+**AppImage** (no build needed): download [Wicklight-x86_64.AppImage](https://github.com/rxvy-dev/wicklight/raw/main/download/Wicklight-x86_64.AppImage), then `chmod +x Wicklight-x86_64.AppImage && ./Wicklight-x86_64.AppImage`
 
 ## First steps in the game
 - A one-line **tutorial** (top left) walks you through looking, moving, jumping, dashing, throwing and recalling your flame.
@@ -107,13 +108,15 @@ To also type `wicklight` in a terminal, add `~/.local/bin` to your PATH:
 ## Quick start
 
 ```sh
+git clone https://github.com/rxvy-dev/wicklight
+cd wicklight
 ./build.sh run        # build and play (needs a C++17 compiler + SDL2 runtime)
 ```
 
-Or download a release from the GitHub Releases page:
+Or download a ready-made build, no compiling needed:
 
-- **AppImage:** `chmod +x Wicklight-*.AppImage && ./Wicklight-*.AppImage`
-- **tar.gz:** extract it, then run `./wicklight` inside the folder.
+- **AppImage:** [Wicklight-x86_64.AppImage](https://github.com/rxvy-dev/wicklight/raw/main/download/Wicklight-x86_64.AppImage), then `chmod +x Wicklight-x86_64.AppImage && ./Wicklight-x86_64.AppImage`
+- **tar.gz:** [wicklight-linux-x86_64.tar.gz](https://github.com/rxvy-dev/wicklight/raw/main/download/wicklight-linux-x86_64.tar.gz), extract it, then run `./wicklight` inside the folder.
 
 ### Requirements
 - x86_64 Linux, X11 or Wayland session
