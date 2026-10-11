@@ -598,6 +598,55 @@ int runFeatureTest(Game& g, const std::string& which) {
         printf("[bot] powers: %s (%d failures)\n", fails ? "FAIL" : "PASS", fails);
         return fails ? 2 : 0;
     }
+    if (which == "postgame") {
+        // after the ending: bounties, the Boss Rush, flame dyes, trophies
+        setenv("WICKLIGHT_BOUNTIES", "1", 1);
+        setenv("WICKLIGHT_BOUNTY_DAY", "20000", 1);
+        freshFeatureSave(g);
+        g.godMode = true;
+        for (const char* f : {"game.finished", "heart.2", "heart.4", "boss.2", "boss.3", "boss.4", "ab.sunflare", "placed.0", "placed.1", "placed.2", "placed.4", "hub.spire", "hub.spiredoor"}) g.setFlag(f);
+        int fails = 0;
+        auto check = [&](const char* what, bool ok, const std::string& extra = "") { printf("[bot] postgame: %-46s %s %s\n", what, ok ? "OK" : "FAIL", extra.c_str()); if (!ok) fails++; };
+        g.enterLevel(LV_HUB, 4);
+        g.dialog.clear();
+        // 1. bounties: today's three, and finishing one pays out
+        g.ensureBounties();
+        printf("[bot] postgame: today's board: %s | %s | %s\n", g.bountyLine(0).c_str(), g.bountyLine(1).c_str(), g.bountyLine(2).c_str());
+        int e0 = g.save.embers;
+        for (int k = 0; k < 9; k++) for (int n = 0; n < 900; n++) { g.bountyEvent(k, k == 1 ? n : 1); if (g.save.bountyDone == 7) break; }
+        check("bounties complete and pay embers", g.save.bountyDone == 7 && g.save.bounties == 3 && g.save.embers >= e0 + 750, std::to_string(g.save.embers - e0) + " embers");
+        // 2. the Boss Rush, all five with the bot
+        int statue = -1; for (int i = 0; i < (int)g.lv.talkers.size(); i++) if (g.lv.talkers[i].who == 18) statue = i;
+        g.talk(statue);
+        for (int k = 0; k < 40 && !g.dialog.empty(); k++) { InputState a; a.pressed[A_INTERACT] = true; g.update(SIM_DT, a); for (int j = 0; j < 30; j++) g.update(SIM_DT, InputState()); }
+        bool started = g.rushActive;
+        Bot bot(g);
+        float t = 0; int stages = 0, lastStage = -1;
+        while ((g.rushActive || g.transitioning) && t < 900) {
+            if (g.rushStage != lastStage) { lastStage = g.rushStage; stages++; bot.cmds = {BOSSF()}; bot.pc = 0; printf("[bot] postgame:   rush stage %d: %s\n", g.rushStage + 1, levelName(g.lv.id)); }
+            if (!bot.step()) { bot.pc = 0; }
+            g.update(SIM_DT, bot.in); t += SIM_DT;
+            g.dialog.clear(); if (g.screen != SC_PLAY) g.screen = SC_PLAY;
+        }
+        for (int k = 0; k < 240; k++) { g.update(SIM_DT, InputState()); g.dialog.clear(); }
+        check("Boss Rush: all five echoes, back to back", started && g.has("rush.done") && g.save.rushBest > 0 && g.lv.id == LV_HUB, std::to_string(stages) + " stages, time " + std::to_string(g.save.rushBest) + "s");
+        check("still finished (no second ending)", g.has("game.finished") && g.screen == SC_PLAY);
+        // 3. flame dyes
+        g.save.embers = 6000;
+        g.screen = SC_DYES; g.shopSel = 7;
+        { InputState ok; ok.mOk = true; g.updateDyes(ok); }
+        check("buy the Rainbow flame from Wren", g.has("dye.7") && g.save.dye == 7 && g.save.embers == 1000);
+        g.screen = SC_PLAY;
+        // 4. trophies are awarded one at a time
+        for (int k = 0; k < 40; k++) { g.toastT = 0; g.checkTrophies(); }
+        int tro = g.countFlags("tro.");
+        check("trophies awarded", tro >= 5 && g.has("tro.25") && g.has("tro.29"), std::to_string(tro) + " of 30");
+        // 5. saves keep all of it
+        g.writeSave(); SaveData keep = g.save; g.save = SaveData(); g.loadGame();
+        check("save/load keeps dye, stats, bounties", g.save.dye == 7 && g.save.bounties == keep.bounties && g.save.bountyDone == 7 && std::fabs(g.save.rushBest - keep.rushBest) < 0.01f);
+        printf("[bot] postgame: %s (%d failures)\n", fails ? "FAIL" : "PASS", fails);
+        return fails ? 2 : 0;
+    }
     if (which == "extras") {
         freshFeatureSave(g);
         g.godMode = true;

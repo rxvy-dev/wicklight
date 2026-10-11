@@ -97,6 +97,8 @@ void Game::damageEnemy(Enemy& e, float dmg, V3 from, bool charged) {
     burst(e.pos + V3(0, e.height * 0.5f, 0), hexColor(0xffb050), 10, 4, 0.08f, 3, 0.35f, 3);
     if (e.hp <= 0) {
         e.alive = false;
+        save.kills++;
+        bountyEvent(0, 1);
         audio::playAt(SFX_KILL, e.pos);
         burst(e.pos + V3(0, e.height * 0.5f, 0), hexColor(0x1a1028), 26, 4, 0.2f, 2, 0.9f, -2);
         burst(e.pos + V3(0, e.height * 0.5f, 0), hexColor(0x9a5aff), 12, 5, 0.07f, 3, 0.6f, 0);

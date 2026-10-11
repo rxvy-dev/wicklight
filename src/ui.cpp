@@ -117,9 +117,11 @@ void Game::updateMenus(float dt, const InputState& in) {
         int found = countFlags("candle.");
         if (in.mUp) { journalSel = std::max(0, journalSel - 1); audio::play(SFX_MENU_MOVE); }
         if (in.mDown) { journalSel = std::min(std::max(0, found - 1), journalSel + 1); audio::play(SFX_MENU_MOVE); }
+        if (in.mLeft || in.mRight) { journalPage = 1 - journalPage; audio::play(SFX_MENU_MOVE); }
         if (in.mBack || in.pressed[A_JOURNAL] || in.mOk || mouseClick) { screen = prevJournalScreen; audio::play(SFX_MENU_BACK); }
         return;
     }
+    if (screen == SC_DYES) { updateDyes(in); return; }
     if (screen == SC_SHOP) { updateShop(in); return; }
     if (screen == SC_BOTSHOP) { updateBotShop(in); return; }
     if (screen == SC_CRAFT) { updateCraft(in); return; }
@@ -422,9 +424,10 @@ void Game::drawHUD() {
     for (auto& tk : lv.talkers) {
         if (len(tk.pos - pl.pos) < 3.0f && dialog.empty()) {
             static const char* names[] = {"Talk to Marrow", "Inspect the pedestals", "", "Sprocket's Robot Friends", "Talk to Gil", "Talk to Tilda", "Talk to Mort", "Talk to Rusty", "Talk to Pip", "Blueprint Table (build)", "Bramble's Supplies",
-                                          "Talk to Mira", "Pet Whiskers", "Talk to Old Fenn", "Candle race with Flick", "Wardrobe mirror (change hat)", "Fish here"};
+                                          "Talk to Mira", "Pet Whiskers", "Talk to Old Fenn", "Candle race with Flick", "Wardrobe mirror (change hat)", "Fish here",
+                                          "Read the Night Board (daily bounties)", "Echo Statue (Boss Rush)", "Wren's Flame Dyes"};
             if (tk.who == 16 && fishState > 0) continue;
-            std::string what = names[std::max(0, std::min(16, tk.who))];
+            std::string what = names[std::max(0, std::min(19, tk.who))];
             std::string p = "[" + bindingName(settings.keys[A_INTERACT]) + "] " + what;
             float sx, sy;
             if (R->project(tk.pos + V3(0, 2.8f, 0), sx, sy)) {
@@ -626,7 +629,8 @@ void Game::drawUI() {
             break;
         case SC_JOURNAL: {
             R->uiRect(0, 0, W, H, V4(0.02f, 0.01f, 0.03f, 0.88f));
-            R->uiTextCentered(W / 2, 12 * s, "JOURNAL", s * 2, COL_HI);
+            R->uiTextCentered(W / 2, 12 * s, journalPage ? "JOURNAL  -  BOUNTIES & TROPHIES" : "JOURNAL", s * 2, COL_HI);
+            if (journalPage == 1) { drawJournalPage2(); break; }
             float x = 20 * s, y = 36 * s;
             R->uiText(x, y, "POWERS", s * 1.2f, COL_HI); y += 14 * s;
             struct P { const char* n; const char* d; bool on; } pw[] = {
@@ -673,10 +677,11 @@ void Game::drawUI() {
                 R->uiFrame(x + 90 * s, y - 4 * s, W - x - 100 * s, 60 * s, C4(0x0c0a14, 0.9f), COL_BORDER);
                 R->uiText(x + 96 * s, y + 2 * s, txt, s, COL_TEXT);
             }
-            R->uiTextCentered(W / 2, H - 12 * s, "Up/Down browse memories   Esc/Tab close", s, COL_DIM);
+            R->uiTextCentered(W / 2, H - 12 * s, "Up/Down browse memories   Left/Right: bounties & trophies   Esc/Tab close", s, COL_DIM);
         } break;
         case SC_HOWTO: drawHowTo(); break;
         case SC_SHOP: drawShop(); break;
+        case SC_DYES: drawDyes(); break;
         case SC_BOTSHOP: drawBotShop(); break;
         case SC_CRAFT: drawCraft(); break;
         case SC_SUPPLY: drawSupply(); break;
@@ -691,6 +696,7 @@ void Game::drawUI() {
             bool all = countFlags("shard.") >= 7 && countFlags("candle.") >= 10;
             drawFriendPlug(R, W, H, s, time);
             R->uiTextCentered(W / 2, H * 0.5f, all ? "Every memory remembered. Every shard found. Marrow would be proud." : "Some memories still flicker in the dark corners of the Hollow...", s, C4(0xc0b0a0));
+            R->uiTextCentered(W / 2, H * 0.5f + 12 * s, "Keep playing: daily bounties on the Night Board, the Boss Rush at the Echo Statue, flame dyes,\nthe Endless Dark, Lumen City, hats, fishing, races and 30 trophies (Journal, page 2).", s, C4(0xa0d0a0));
             if (screenT > 1.0f) drawMenu(nullptr, menuItems(*this), menuSel, H * 0.62f);
         } break;
         default: break;
@@ -703,6 +709,8 @@ void Game::drawUI() {
 // ------------------------------------------------------------------ objective tracker & tutorial
 std::string Game::currentObjective() const {
     int hearts = countFlags("heart.");
+    if (has("game.finished") && lv.id == LV_HUB && !has("rush.done")) return "NEW: the ECHO STATUE (by Marrow's workshop) wakes every boss for a BOSS RUSH. Also: the Night Board's daily bounties!";
+    if (has("game.finished") && lv.id == LV_HUB && save.bountyDone != 7) return "Today's bounties are on the NIGHT BOARD by the Spire (" + std::to_string(__builtin_popcount(save.bountyDone)) + "/3 done). Journal page 2 shows trophies.";
     if (has("game.finished") && lv.id == LV_HUB) return has("home.unlocked") ? "Endless Dark: east portal (best depth " + std::to_string(save.endlessBest) + ").  Wick's Island: west portal." : "Dive into the ENDLESS DARK (portal east of the Spire). Clear 10 depths to unlock Wick's Island!";
     if (!has("talk.marrow0")) return "Talk to Marrow in his workshop [" + bindingName(settings.keys[A_INTERACT]) + "]";
     switch (lv.id) {

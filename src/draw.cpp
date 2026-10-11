@@ -9,6 +9,10 @@ void drawEnemyExtra(Game& g, Renderer* R, const Enemy& e);
 void drawPickupExtra(Renderer* R, const Pickup& p, V3 pos, float t);
 void drawWorldExtras(Game& g, Renderer* R);
 void extrasLights(Game& g, Renderer* R);
+void drawPostgameNPC(Renderer* R, int who, V3 pos, float yaw, float t, const Game& g);
+void dyeColors(int dye, float t, V3& outer, V3& mid, V3& core);
+// the player's flame, in Wren's dye colours
+static void drawFlameDyed(Renderer* R, V3 p, float scale, float t, bool white, int dye, float alpha = 1);
 
 static M4 TRS(V3 t, float yaw, V3 s) { return M4::translate(t) * M4::rotY(yaw) * M4::scale(s); }
 
@@ -23,6 +27,15 @@ static void drawFlame(Renderer* R, V3 p, float scale, float t, bool white, float
     V3 outer = white ? hexColor(0xfff0c0) : hexColor(0xff7a20);
     V3 mid = white ? hexColor(0xffffff) : hexColor(0xffb040);
     V3 core = white ? hexColor(0xffffff) : hexColor(0xfff0a0);
+    float f1 = std::sin(t * 13) * 0.08f, f2 = std::sin(t * 17 + 1) * 0.06f;
+    R->drawPart(PM_OCTA, TRS(p + V3(0, 0.12f * scale, 0), t * 2, V3(0.42f + f1, 0.75f + f2, 0.42f + f1) * scale), T_WHITE, outer, 2.2f, 0, alpha);
+    R->drawPart(PM_OCTA, TRS(p + V3(0, 0.1f * scale, 0), -t * 3, V3(0.28f, 0.52f + f1, 0.28f) * scale), T_WHITE, mid, 2.6f, 0, alpha);
+    R->drawPart(PM_OCTA, TRS(p + V3(0, 0.05f * scale, 0), t * 4, V3(0.15f, 0.28f, 0.15f) * scale), T_WHITE, core, 3.0f, 0, alpha);
+}
+
+static void drawFlameDyed(Renderer* R, V3 p, float scale, float t, bool white, int dye, float alpha) {
+    if (white || dye <= 0) { drawFlame(R, p, scale, t, white, alpha); return; }
+    V3 outer, mid, core; dyeColors(dye, t, outer, mid, core);
     float f1 = std::sin(t * 13) * 0.08f, f2 = std::sin(t * 17 + 1) * 0.06f;
     R->drawPart(PM_OCTA, TRS(p + V3(0, 0.12f * scale, 0), t * 2, V3(0.42f + f1, 0.75f + f2, 0.42f + f1) * scale), T_WHITE, outer, 2.2f, 0, alpha);
     R->drawPart(PM_OCTA, TRS(p + V3(0, 0.1f * scale, 0), -t * 3, V3(0.28f, 0.52f + f1, 0.28f) * scale), T_WHITE, mid, 2.6f, 0, alpha);
@@ -75,7 +88,7 @@ static void drawWick(Game& g, Renderer* R) {
         float sc = 1.0f;
         bool white = false;
         if (g.flame.charging) { sc = 1 + std::min(g.flame.charge, 0.75f) * 0.8f; white = g.flame.charge >= 0.75f; }
-        drawFlame(R, p.pos + V3(0, headY + 0.32f + lift, 0), sc, t, white, alpha);
+        drawFlameDyed(R, p.pos + V3(0, headY + 0.32f + lift, 0), sc, t, white, g.save.dye, alpha);
     }
     // overclock: a cyan afterimage trail
     if (g.ocT > 0 && !R->shadowPass) {
@@ -605,7 +618,8 @@ static void drawGeometry(Game& g, Renderer* R) {
     // the people of the Hollow
     for (auto& tk : g.lv.talkers) if (tk.who >= 3) {
         float yaw = tk.yaw;
-        if (g.screen == SC_PLAY && len(g.pl.pos - tk.pos) < 8 && tk.who != 15 && tk.who != 16) yaw = std::atan2(g.pl.pos.x - tk.pos.x, g.pl.pos.z - tk.pos.z);
+        if (g.screen == SC_PLAY && len(g.pl.pos - tk.pos) < 8 && tk.who != 15 && tk.who != 16 && tk.who != 17 && tk.who != 18) yaw = std::atan2(g.pl.pos.x - tk.pos.x, g.pl.pos.z - tk.pos.z);
+        if (tk.who >= 17) { drawPostgameNPC(R, tk.who, tk.pos, yaw, t, g); continue; }
         drawNPC(R, tk.who, tk.pos, yaw, t);
     }
     drawBots(g, R);
@@ -625,7 +639,7 @@ static void drawGeometry(Game& g, Renderer* R) {
     if (!(g.screen == SC_ENDING && g.cineStep >= 2 && g.cineStep < 6)) drawWick(g, R);
     if (g.flame.st != F_HELD && !g.pl.dead) {
         float sc = g.flame.charged ? 1.5f : 1.1f;
-        drawFlame(R, g.flame.pos - V3(0, 0.15f, 0), sc, t, g.flame.charged);
+        drawFlameDyed(R, g.flame.pos - V3(0, 0.15f, 0), sc, t, g.flame.charged, g.save.dye);
     }
     // projectiles
     for (auto& p : g.projs) {
@@ -697,7 +711,9 @@ void Game::draw() {
     if (!pl.dead && showFlame && !(screen == SC_ENDING && cineStep >= 2)) {
         float r = flame.st == F_HELD ? 10.f : (flame.charged ? 14.f : 12.f);
         if (flame.charging) r += flame.charge * 3;
-        V3 col = flame.charged || (flame.charging && flame.charge >= 0.75f) ? V3(1, 0.9f, 0.7f) : FLAME_COL;
+        V3 dyeMid = FLAME_COL;
+        if (save.dye > 0) { V3 o, c; dyeColors(save.dye, time, o, dyeMid, c); }
+        V3 col = flame.charged || (flame.charging && flame.charge >= 0.75f) ? V3(1, 0.9f, 0.7f) : dyeMid;
         R->lights.push_back({flame.st == F_HELD ? pl.pos + V3(0, 1.6f, 0) : flame.pos, r, col, 1.7f * flick});
         if (flame.st != F_HELD) R->lights.push_back({pl.pos + V3(0, 1.4f, 0), 2.8f, FLAME_COL, 0.5f});
         glow(R, flame.st == F_HELD ? pl.pos + V3(0, 1.6f, 0) : flame.pos, FLAME_COL, flame.st == F_HELD ? 0.9f : 1.2f, 0.5f);

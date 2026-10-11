@@ -264,6 +264,13 @@ void buildHub(Level& L, Game& g) {
             L.race.push_back({p, std::atan2(d.x, d.z), rr[i].high});
         }
     }
+    // forever: the Night Board (daily bounties), the Echo Statue (Boss Rush) and Wren's flame dyes
+    b.talker(V3(5, 0, 9.5f), 0, 17);
+    b.solid(AABB(V3(3.7f, 0, 9.3f), V3(6.3f, 2.5f, 9.7f)), T_PLANK, -1, V3(1, 1, 1), false);
+    b.talker(V3(-10, 0, -11), 0.6f, 18);
+    b.solid(AABB(V3(-10.8f, 0, -11.8f), V3(-9.2f, 3, -10.2f)), T_MARBLE, -1, V3(1, 1, 1), false);
+    if (g.has("game.finished")) b.light(V3(-10, 3.5f, -11), 6, hexColor(0xa060ff), 1.0f);
+    b.talker(V3(9.5f, 0, -8.5f), -2.2f, 19);
     // the wardrobe mirror in Marrow's workshop (change hats)
     b.talker(V3(5.6f, 0, -25.5f), -PI / 2, 15);
     b.hint(AABB(V3(3.5f, 0, -27.5f), V3(6.4f, 3, -23.5f)), "A tall old mirror. [{INTERACT}] to try on the hats you've found.");

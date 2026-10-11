@@ -244,6 +244,7 @@ bool Game::updateFishing(float dt, const InputState& in) {
                     bool first = !has("fish." + std::to_string(k));
                     setFlag("fish." + std::to_string(k));
                     save.fishCaught++;
+                    bountyEvent(2, 1);
                     save.embers += FISH_EMBERS[k];
                     showToast(std::string("CAUGHT A ") + FISH_NAMES[k] + "!", "+" + std::to_string(FISH_EMBERS[k]) + " embers" + (first ? "   (new species!)" : ""));
                     audio::play(SFX_SHARD, 0.9f, k == 3 ? 0.8f : 1.2f);
@@ -278,6 +279,7 @@ static void finishRace(Game& g) {
     g.showToast(std::string("FINISH! ") + tb, std::string(M[medal]) + (best ? "   - new best!" : ""));
     audio::play(SFX_CHECKPOINT); audio::play(SFX_BELL, 1, 1.3f);
     int reward = 0;
+    if (medal >= 2) g.bountyEvent(8, 1);
     for (int m = 1; m <= medal; m++) {
         std::string f = "race.m" + std::to_string(m);
         if (!g.has(f)) { g.setFlag(f); reward += m * 20; }

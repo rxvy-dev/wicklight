@@ -266,6 +266,10 @@ struct SaveData {
     float dayT = 0.05f;                             // 0..1 day/night cycle
     bool hasBed = false; int bedX = 0, bedY = 0, bedZ = 0;
     int hat = 0;                                    // cosmetic hat worn by Wick (0 none)
+    int dye = 0;                                    // flame colour (0 = ember)
+    int kills = 0, bestCombo = 0, bounties = 0;     // lifetime stats (trophies)
+    float rushBest = 0;                             // best Boss Rush time
+    int bountyDay = -1, bountyProg[3] = {0, 0, 0}, bountyDone = 0;  // the Night Board's daily bounties
     int fishCaught = 0;
     float raceBest = 0;                             // best candle-race time (0 = none)
     bool has(const std::string& f) const { return flags.count(f) > 0; }
@@ -291,7 +295,7 @@ static const int PIXEL_LINES[] = {180, 225, 270, 360, 540};
 static const int PIXEL_MODES = 5;
 
 // ------------------------------------------------------------------ screens
-enum Screen { SC_TITLE, SC_INTRO, SC_PLAY, SC_PAUSE, SC_SETTINGS, SC_CONTROLS, SC_JOURNAL, SC_ENDING, SC_VICTORY, SC_CREDITS, SC_CONFIRM_NEW, SC_HOWTO, SC_SHOP, SC_BOTSHOP, SC_CRAFT, SC_SUPPLY, SC_CHEST };
+enum Screen { SC_TITLE, SC_INTRO, SC_PLAY, SC_PAUSE, SC_SETTINGS, SC_CONTROLS, SC_JOURNAL, SC_ENDING, SC_VICTORY, SC_CREDITS, SC_CONFIRM_NEW, SC_HOWTO, SC_SHOP, SC_BOTSHOP, SC_CRAFT, SC_SUPPLY, SC_CHEST, SC_DYES };
 
 struct DialogLine { std::string who; std::string text; };
 
@@ -403,6 +407,18 @@ struct Game {
     void startRace();
     void drawExtrasHUD();
     void cycleHat();
+    // --- after the ending: daily bounties, trophies, Boss Rush, flame dyes
+    bool rushActive = false; int rushStage = 0; float rushT = 0, rushNext = 0;
+    int bossHurt = 0; float trophyT = 0; int journalPage = 0;
+    void bountyEvent(int kind, int amount);
+    void ensureBounties();
+    std::string bountyLine(int i) const;
+    void updatePostgame(float dt);
+    void checkTrophies();
+    void startRush();
+    void rushStageEnter();
+    void drawDyes(); void updateDyes(const InputState& in);
+    void drawJournalPage2();
     // --- companion bots (bought from Sprocket with embers)
     struct BotRT { V3 pos; float timer = 0; float charge = 0; float flash = 0; };
     BotRT bots[5];

@@ -103,6 +103,7 @@ void Game::hurtPlayer(float dmg, V3 from) {
         return;
     }
     pl.hp -= dmg;
+    if (boss.active) bossHurt++;
     if (combo >= 6) { statusMsg = "Combo broken!"; statusT = 1.2f; }
     combo = 0;
     if (getenv("WL_HURTLOG")) fprintf(stderr, "HURT %.1f from (%.1f %.1f %.1f) at (%.1f %.1f %.1f) hp=%.1f t=%.1f\n", dmg, from.x, from.y, from.z, pl.pos.x, pl.pos.y, pl.pos.z, pl.hp, time);
@@ -129,7 +130,9 @@ void Game::killPlayer() {
     burst(pl.pos + V3(0, 1.2f, 0), hexColor(0xffa040), 30, 6, 0.1f, 3, 1.2f);
 }
 
+bool rushDied(Game& g);
 void Game::respawnAtLantern() {
+    if (rushDied(*this)) return;
     if (save.level == LV_HOME) respawnAtBed = true;
     enterLevel((LevelId)save.level, save.spawn);
     pl.hp = maxHp();
@@ -543,6 +546,8 @@ void Game::updateFlame(float dt, const InputState& in) {
 // ------------------------------------------------------------------ embers, combos, urns
 void Game::addCombo(V3 at) {
     combo++;
+    if (combo > save.bestCombo) save.bestCombo = combo;
+    bountyEvent(1, combo);
     if (ability("overclock") && ocT <= 0) {
         float before = ocCharge;
         ocCharge = std::min(1.f, ocCharge + 0.07f);
@@ -574,6 +579,7 @@ void Game::breakUrn(int i) {
     auto& b = lv.breakables[i];
     if (b.broken) return;
     b.broken = true;
+    bountyEvent(4, 1);
     static Rng r(4711);
     audio::playAt(SFX_BREAK, b.pos, 0.6f, 1.4f + r.f() * 0.4f);
     burst(b.pos + V3(0, 0.4f, 0), b.kind == 0 ? hexColor(0xa0603a) : hexColor(0x8a8090), 16, 4, 0.09f, 0, 0.7f, 14);

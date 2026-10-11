@@ -203,6 +203,8 @@ void buildEndless(Level& L, Game& g) {
 
 void Game::completeEndlessLevel() {
     int d = save.endlessDepth;
+    bountyEvent(3, 1);
+    if (lv.name.find("FBI") != std::string::npos) setFlag("endless.raid");
     save.endlessBest = std::max(save.endlessBest, d);
     int emb = 15 + 5 * d;
     Rng r(hash32((uint32_t)d * 31u + 7u));

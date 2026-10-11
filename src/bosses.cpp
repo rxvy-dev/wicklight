@@ -15,8 +15,9 @@ void Game::resetBoss() {
 }
 
 void Game::startBoss() {
-    if (lv.boss.type == B_NONE || boss.active || has(lv.boss.flag)) return;
+    if (lv.boss.type == B_NONE || boss.active || (has(lv.boss.flag) && !rushActive)) return;
     resetBoss();
+    bossHurt = 0;
     boss.type = lv.boss.type;
     boss.active = true;
     boss.name = BOSS_NAMES[boss.type];
@@ -142,7 +143,11 @@ void Game::bossDamage(int wp, float dmg, bool charged) {
     }
 }
 
+bool rushBossDown(Game& g);
 void Game::bossDefeated() {
+    bountyEvent(6, 1);
+    if (bossHurt == 0) setFlag("boss.flawless");
+    if (rushBossDown(*this)) return;
     setFlag(lv.boss.flag);
     boss.active = false;
     for (int g : lv.boss.gates) { lv.dyn[g].open = true; }

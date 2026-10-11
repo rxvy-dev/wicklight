@@ -14,6 +14,7 @@ extern int g_dmgKind;
 void collectExtra(Game& g, Pickup& p);
 bool talkExtra(Game& g, int ti);
 void fennLampLit(Game& g);
+bool talkPostgame(Game& g, int ti);
 
 // ------------------------------------------------------------------ text
 const char* levelName(LevelId id) {
@@ -130,6 +131,8 @@ void Game::writeSave() {
     }
     for (auto& l : save.voxLines) o << l << "\n";
     o << "hat " << save.hat << "\n" << "fish " << save.fishCaught << "\n" << "race " << save.raceBest << "\n";
+    o << "dye " << save.dye << "\n" << "stats " << save.kills << " " << save.bestCombo << " " << save.bounties << " " << save.rushBest << "\n";
+    o << "bounty " << save.bountyDay << " " << save.bountyProg[0] << " " << save.bountyProg[1] << " " << save.bountyProg[2] << " " << save.bountyDone << "\n";
     for (auto& f : save.flags) o << "flag " << f << "\n";
     o << "end\n";
     if (!atomicWrite(saveDir + "/save.dat", o.str())) {
@@ -167,6 +170,9 @@ bool Game::loadGame() {
         else if (key == "vx") s.voxLines.push_back(line);
         else if (key == "hat") { ls >> s.hat; if (s.hat < 0 || s.hat > 31) s.hat = 0; }
         else if (key == "fish") ls >> s.fishCaught;
+        else if (key == "dye") { ls >> s.dye; if (s.dye < 0 || s.dye > 7) s.dye = 0; }
+        else if (key == "stats") ls >> s.kills >> s.bestCombo >> s.bounties >> s.rushBest;
+        else if (key == "bounty") ls >> s.bountyDay >> s.bountyProg[0] >> s.bountyProg[1] >> s.bountyProg[2] >> s.bountyDone;
         else if (key == "race") { ls >> s.raceBest; if (!(s.raceBest >= 0)) s.raceBest = 0; }
         else if (key == "flag") { std::string f; ls >> f; if (!f.empty()) s.flags.insert(f); }
         else if (key == "end") { ended = true; break; }
@@ -352,6 +358,7 @@ void Game::startDialog(const std::vector<DialogLine>& lines, std::function<void(
 
 void Game::talk(int ti) {
     if (talkExtra(*this, ti)) return;
+    if (talkPostgame(*this, ti)) return;
     const Talker& t = lv.talkers[ti];
     if (t.who == 0) {  // Marrow
         int hearts = countFlags("heart.");
@@ -359,7 +366,9 @@ void Game::talk(int ti) {
         if (has("game.finished")) {
             L = {{"MARROW", "Look at it, Wick. A small light. Just enough to read by."},
                  {"MARROW", "And there - see? Shadows on the cobbles again. Ordinary ones."},
-                 {"MARROW", "Go on, little flame. The Hollow is yours to wander."}};
+                 {"MARROW", "Go on, little flame. The Hollow is yours to wander."},
+                 {"MARROW", "And there's always more to do. The NIGHT BOARD by the Spire posts new bounties every day."},
+                 {"MARROW", "The ECHO STATUE has woken, too - it wants to send every guardian at you again. And Wren is selling coloured fire, of all things."}};
         } else if (has("boss.1") && !has("talk.fbi")) {
             L = {{"MARROW", "Wick! Have you SEEN the posters? 'WANTED: THE HACKER'. With YOUR face on them!"},
                  {"MARROW", "GL1TCH must have rerouted his trail to you before he went offline. The FBI is in Lumen City, hunting for 'a small, warm suspect'."},
@@ -522,6 +531,7 @@ void Game::collectPickup(Pickup& p) {
     switch (p.type) {
         case PK_EMBER:
             save.embers += p.value;
+            bountyEvent(7, p.value);
             audio::play(SFX_TICK, 0.6f, 1.6f + 0.02f * (p.value % 10));
             break;
         case PK_HAT: case PK_POWER: collectExtra(*this, p); break;
@@ -611,6 +621,7 @@ void Game::lightBrazier(int i, bool byBloom) {
     b.litT = b.timed;
     audio::playAt(SFX_BRAZIER, b.pos);
     burst(b.pos, hexColor(0xffa040), 24, 4, 0.1f, 3, 0.8f, -2);
+    bountyEvent(5, 1);
     if (b.gateGroup == 70) { fennLampLit(*this); return; }
     if (b.gateGroup >= 0) {
         bool all = true;
@@ -1007,6 +1018,7 @@ void Game::update(float dt, const InputState& in) {
     updateBoss(wdt);
     if (screen != SC_PLAY) return;
     updateExtras(dt, pin);
+    updatePostgame(dt);
     if (screen != SC_PLAY) return;
 
     // talkers
