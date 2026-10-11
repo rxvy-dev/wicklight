@@ -411,6 +411,16 @@ void Game::drawHUD() {
     if (pl.dead && pl.deadT > 0.4f) R->uiTextCentered(W / 2, H * 0.45f, "your flame gutters...", s * 2, V4(1, 0.6f, 0.4f, std::min(1.f, pl.deadT - 0.4f)));
 }
 
+// a shout-out to a friend's game, on the title, credits and victory screens
+static void drawFriendPlug(Renderer* R, float W, float H, float s, float t) {
+    const char* big = "TRY CABIN CAMPING TOO!";
+    const char* small = "a retro horror game by CheezeKneez  -  thecheezekneez.itch.io/cabin-camping";
+    float pulse = 0.8f + 0.2f * std::sin(t * 3);
+    float y = H - 34 * s;
+    R->uiTextCentered(W / 2, y, big, s * 1.6f, V4(0.55f * pulse + 0.3f, 1.0f * pulse, 0.45f * pulse, 1));
+    R->uiTextCentered(W / 2, y + 14 * s, small, s, C4(0xb8c8a8));
+}
+
 void Game::drawUI() {
     float s = (float)R->uiScale();
     float W = (float)R->winW, H = (float)R->winH;
@@ -475,6 +485,7 @@ void Game::drawUI() {
         R->uiTextCentered(W / 2, H * 0.16f + 9 * ls, "your head is the last flame in the world", s, C4(0xd0c0b0));
         if (saveCorrupt) R->uiTextCentered(W / 2, H - 22 * s, "Your save file was damaged and has been set aside (save.dat.corrupt).", s, C4(0xff8060));
         R->uiText(6 * s, H - 10 * s, "v1.0.1  native Linux build", s, COL_DIM);
+        drawFriendPlug(R, W, H, s, time);
     }
     switch (screen) {
         case SC_TITLE: drawMenu(nullptr, menuItems(*this), menuSel, H * 0.5f); break;
@@ -561,6 +572,7 @@ void Game::drawUI() {
             snprintf(buf, sizeof(buf), "Time  %s\nDeaths  %d\nEmber Shards  %d / 7\nMemory Candles  %d / 10", fmtTime(save.playTime).c_str(), save.deaths, countFlags("shard."), countFlags("candle."));
             R->uiTextCentered(W / 2, H * 0.3f, buf, s * 1.4f, V4(0.95f, 0.9f, 0.85f, a));
             bool all = countFlags("shard.") >= 7 && countFlags("candle.") >= 10;
+            drawFriendPlug(R, W, H, s, time);
             R->uiTextCentered(W / 2, H * 0.5f, all ? "Every memory remembered. Every shard found. Marrow would be proud." : "Some memories still flicker in the dark corners of the Hollow...", s, C4(0xc0b0a0));
             if (screenT > 1.0f) drawMenu(nullptr, menuItems(*this), menuSel, H * 0.62f);
         } break;

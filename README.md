@@ -11,6 +11,8 @@
 | ![Fighting the Hush](docs/shot-boss.jpg) | ![Throwing the flame at the Drowned Bellwether](docs/shot-throw.jpg) |
 | ![Building a house on Wick's Island](docs/shot-island.jpg) | ![A crystal cave on Wick's Island](docs/shot-cave.jpg) |
 
+🏕️ **Try [Cabin Camping](https://thecheezekneez.itch.io/cabin-camping) too!** A free retro horror game by my friend CheezeKneez, about a camping trip where something might be following you (Windows & Linux).
+
 A native Linux 3D pixel-art action-adventure written in C++17 with SDL2 and OpenGL 3.3. No browser, no Electron, no engine runtime, and no asset files: every texture, model, sound effect and music track is generated in code.
 
 ## The game
