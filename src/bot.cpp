@@ -389,6 +389,17 @@ static std::vector<Cmd> campaign() {
 }
 
 static const char* THEME_NAME(int d) { static const char* n[5] = {"drowned", "ticking", "ashen", "rusted", "starlit"}; return n[(d - 1) % 5]; }
+// ---- used by the showcase recorder: the same campaign bot, stepped one sim tick at a time
+void* scBotNew(Game& g) { Bot* b = new Bot(g); b->cmds = campaign(); return b; }
+void scBotFree(void* p) { delete (Bot*)p; }
+bool scBotStep(void* p, InputState& in, std::string& section) {
+    Bot* b = (Bot*)p;
+    bool ok = b->step();
+    b->total += SIM_DT;
+    in = b->in; section = b->section;
+    return ok || !b->g.dialog.empty();
+}
+
 int runAutotest(Game& g, const std::string& which) {
     setenv("WICKLIGHT_NO_SAVE", "", 0);
     if (which.rfind("endless", 0) == 0) {

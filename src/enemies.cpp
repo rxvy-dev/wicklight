@@ -1,5 +1,7 @@
 // WICKLIGHT - enemies of the Hush, projectiles and area hazards
 #include "game.h"
+// visual-only randomness: kept apart from the gameplay RNG so rendering never changes the simulation
+static Rng& fxRng() { static Rng r(31337); return r; }
 
 extern int g_dmgKind;
 static Rng erng(4242);
@@ -440,7 +442,7 @@ void Game::updateProjectiles(float dt) {
                     audio::playAt(water ? SFX_SPLASH : SFX_LAND, hp, 0.6f);
                     p.alive = false;
                 } else p.pos += step;
-                if (!headless && R && erng.f() < 0.5f) {
+                if (!headless && R && fxRng().f() < 0.5f) {
                     Particle q; q.pos = p.pos; q.color = hexColor(0x3a2050); q.alpha = 1; q.size = 0.12f; q.life = q.maxLife = 0.4f; q.kind = 2;
                     R->spawn(q);
                 }
@@ -449,8 +451,8 @@ void Game::updateProjectiles(float dt) {
                 p.pos += p.vel * dt;
                 if (!pl.dead && distXZ(pl.pos, p.pos) < p.radius + 0.35f && pl.pos.y < p.pos.y + p.radius) hurtPlayer(1, p.pos);
                 if (boss.active && distXZ(p.pos, lv.boss.center) > lv.boss.radius + 1) p.alive = false;
-                if (!headless && R && erng.f() < 0.4f) {
-                    Particle q; q.pos = p.pos - V3(0, p.radius - 0.1f, 0); q.vel = V3(erng.range(-2, 2), 3, erng.range(-2, 2));
+                if (!headless && R && fxRng().f() < 0.4f) {
+                    Particle q; q.pos = p.pos - V3(0, p.radius - 0.1f, 0); q.vel = V3(fxRng().range(-2, 2), 3, fxRng().range(-2, 2));
                     q.color = hexColor(0xffd070); q.alpha = 1; q.size = 0.05f; q.life = q.maxLife = 0.3f; q.kind = 3; q.gravity = 10;
                     R->spawn(q);
                 }

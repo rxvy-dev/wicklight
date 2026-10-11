@@ -92,7 +92,8 @@ tar xzf wicklight-source.tar.gz && cd wicklight
 ./build.sh run        # build and play right away
 ./build.sh install    # add the `wicklight` command + app-menu entry (~/.local, no root)
 ```
-If `wicklight` isn't found after installing, add `~/.local/bin` to your PATH:
+Wicklight then appears in your app launcher (the menu entry uses the full path, so it works without any PATH setup).
+To also type `wicklight` in a terminal, add `~/.local/bin` to your PATH:
 `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc` (or your shell's rc file).
 `./build.sh uninstall` removes it and keeps your saves.
 

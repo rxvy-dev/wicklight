@@ -420,6 +420,7 @@ void Game::drawUI() {
         R->uiRect(0, 0, W, bh, V4(0, 0, 0, 1));
         R->uiRect(0, H - bh, W, bh, V4(0, 0, 0, 1));
     }
+    if (hideHUD) { if (overlayUI) overlayUI(); return; }
     if (screen == SC_PLAY || screen == SC_PAUSE || screen == SC_JOURNAL || (screen == SC_SETTINGS && prevScreen == SC_PAUSE) || screen == SC_CONTROLS) {
         if (screen == SC_PLAY) { drawHUD(); if (dialog.empty()) drawTutorial(); }
         // dialog box
@@ -473,7 +474,7 @@ void Game::drawUI() {
         R->uiTextCentered(W / 2, H * 0.16f, "WICKLIGHT", ls, V4(1, 0.7f * flick, 0.3f * flick, 1), false);
         R->uiTextCentered(W / 2, H * 0.16f + 9 * ls, "your head is the last flame in the world", s, C4(0xd0c0b0));
         if (saveCorrupt) R->uiTextCentered(W / 2, H - 22 * s, "Your save file was damaged and has been set aside (save.dat.corrupt).", s, C4(0xff8060));
-        R->uiText(6 * s, H - 10 * s, "v1.0  native Linux build", s, COL_DIM);
+        R->uiText(6 * s, H - 10 * s, "v1.0.1  native Linux build", s, COL_DIM);
     }
     switch (screen) {
         case SC_TITLE: drawMenu(nullptr, menuItems(*this), menuSel, H * 0.5f); break;
@@ -567,6 +568,7 @@ void Game::drawUI() {
     }
     // global fade for respawn handled in post; transition text
     if (transitioning && transitionT > 0.2f) R->uiTextCentered(W / 2, H / 2, "...", s * 2, COL_DIM);
+    if (overlayUI) overlayUI();  // showcase recording: captions on top of real menus
 }
 
 // ------------------------------------------------------------------ objective tracker & tutorial

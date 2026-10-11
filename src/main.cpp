@@ -8,6 +8,8 @@
 #include <cmath>
 
 int runAutotest(Game& g, const std::string& which);  // bot.cpp
+int runShowcase(Game& g, Renderer& R, const std::string& out, int W, int H);  // showcase.cpp
+int surveyIsland(uint32_t seed);
 
 static void usage() {
     printf("WICKLIGHT - a native Linux 3D pixel game\n"
@@ -21,7 +23,7 @@ static void usage() {
 
 int main(int argc, char** argv) {
     bool headless = false, autotest = false;
-    std::string autotestWhich = "all", shotPath;
+    std::string autotestWhich = "all", shotPath, showcasePath;
     int shotFrames = 0, startLevel = -1, startSpawn = 0, width = 1280, height = 720, forceFs = -1;
     for (int i = 1; i < argc; i++) {
         std::string a = argv[i];
@@ -29,6 +31,8 @@ int main(int argc, char** argv) {
         if (a == "--headless") headless = true;
         else if (a == "--autotest") { autotest = true; if (i + 1 < argc && argv[i + 1][0] != '-') autotestWhich = next(); }
         else if (a == "--screenshot") shotPath = next();
+        else if (a == "--showcase") { showcasePath = next(); forceFs = 0; }
+        else if (a == "--survey") return surveyIsland((uint32_t)strtoul(next().c_str(), nullptr, 10));
         else if (a == "--frames") shotFrames = atoi(next().c_str());
         else if (a == "--level") startLevel = atoi(next().c_str());
         else if (a == "--spawn") startSpawn = atoi(next().c_str());
@@ -36,7 +40,7 @@ int main(int argc, char** argv) {
         else if (a == "--height") height = atoi(next().c_str());
         else if (a == "--windowed") forceFs = 0;
         else if (a == "--fullscreen") forceFs = 1;
-        else if (a == "--version") { printf("WICKLIGHT 1.0\n"); return 0; }
+        else if (a == "--version") { printf("WICKLIGHT 1.0.1\n"); return 0; }
         else if (a == "--help" || a == "-h") { usage(); return 0; }
     }
 
@@ -98,10 +102,13 @@ int main(int argc, char** argv) {
     int dw, dh; sdl::GL_GetDrawableSize(win, &dw, &dh);
     R.winW = dw; R.winH = dh;
     R.pixelLines = PIXEL_LINES[game.settings.pixelMode];
+    if (!showcasePath.empty()) { R.pixelLines = dh > dw ? 480 : 270; game.settings.outlines = true; game.settings.fov = dh > dw ? 78 : 66; }
     R.shadowQuality = game.settings.shadows;
     if (!R.init(err)) { showFatalError("Renderer failed", err); return 1; }
-    if (!audio::init()) fprintf(stderr, "[wicklight] continuing without sound\n");
+    if (!showcasePath.empty()) audio::initOffline();
+    else if (!audio::init()) fprintf(stderr, "[wicklight] continuing without sound\n");
     game.init(&R, false);
+    if (!showcasePath.empty()) { sdl::GL_SetSwapInterval(0); int rc = runShowcase(game, R, showcasePath, dw, dh); sdl::GL_DeleteContext(ctx); sdl::DestroyWindow(win); sdl::Quit(); return rc; }
     if (startLevel >= 0 && startLevel < LV_COUNT) { game.loadGame(); game.enterLevel((LevelId)startLevel, startSpawn); game.screen = SC_PLAY; if (getenv("WICKLIGHT_DEBUG_SHOP")) game.screen = SC_SHOP; if (getenv("WICKLIGHT_DEBUG_SCREEN")) game.screen = (Screen)atoi(getenv("WICKLIGHT_DEBUG_SCREEN"));
         if (const char* dp = getenv("WICKLIGHT_DEBUG_POS")) { float x, y, z, yw, pt = -0.2f; if (sscanf(dp, "%f,%f,%f,%f,%f", &x, &y, &z, &yw, &pt) >= 4) { game.pl.pos = game.pl.safePos = V3(x, y, z); game.camYaw = game.pl.yaw = yw; game.camPitch = pt; game.camTarget = game.pl.pos + V3(0, 1.65f, 0); } }
         if (getenv("WICKLIGHT_DEBUG_BOSS") && game.lv.boss.type != B_NONE) { game.pl.pos = game.lv.boss.center + V3(-3, 0, -9); game.camYaw = 0.3f; game.startBoss(); } }

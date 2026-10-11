@@ -21,4 +21,8 @@ void setListener(const V3& pos, const V3& right);
 void setSong(Song s);
 void setVolumes(float master, float music, float sfx);
 bool available();
+bool initOffline();                         // showcase recording: no device, pull samples yourself
+void renderOffline(float* out, int frames);  // interleaved stereo float
+void forceSong(Song s);                      // hard cut to a song, starting on beat 1
+void stopSfx();                              // silence every sound effect
 }  // namespace audio

@@ -12,7 +12,7 @@ set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
 APP=wicklight
-VERSION=1.0.0
+VERSION=1.0.1
 BUILD=build
 DIST=dist
 CXXFLAGS_COMMON=(-std=c++17 -O2 -Wall -Wno-unused-parameter -Wno-unused-result -Isrc -Ithird_party/include)

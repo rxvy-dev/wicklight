@@ -23,6 +23,7 @@ struct Voice {
 const int MAXV = 96;
 Voice voices[MAXV];
 SDL_AudioDeviceID dev = 0;
+bool offline = false;  // showcase recording: mixed on demand instead of by a device
 float gMaster = 0.8f, gMusic = 0.6f, gSfx = 0.8f;
 V3 listenerPos, listenerRight(1, 0, 0);
 std::atomic<int> pendingSong{-1};
@@ -336,30 +337,37 @@ bool init() {
     sdl::PauseAudioDevice(dev, 0);
     return true;
 }
+bool initOffline() { offline = true; return true; }
+void forceSong(Song s) {  // hard cut, no fade: the new song starts on its first beat right now
+    for (auto& v : voices) if (v.music) v.on = false;
+    pendingSong.store((int)s); curSong = (int)s; step = 0; songClock = 0; musicGain = 1; musicTarget = 1;
+}
+void stopSfx() { for (auto& v : voices) if (!v.music) v.on = false; }
+void renderOffline(float* out, int frames) { mix(nullptr, (Uint8*)out, frames * 8); }
 void shutdown() { if (dev) { sdl::CloseAudioDevice(dev); dev = 0; } }
-bool available() { return dev != 0; }
+bool available() { return dev != 0 || offline; }
 void setVolumes(float master, float music, float sfx) {
     if (dev) sdl::LockAudioDevice(dev);
     gMaster = master; gMusic = music; gSfx = sfx;
     if (dev) sdl::UnlockAudioDevice(dev);
 }
 void play(Sfx s, float vol, float pitch) {
-    if (!dev) return;
-    sdl::LockAudioDevice(dev);
+    if (!dev && !offline) return;
+    if (dev) sdl::LockAudioDevice(dev);
     spawnSfx(s, vol, pitch, 1, 1);
-    sdl::UnlockAudioDevice(dev);
+    if (dev) sdl::UnlockAudioDevice(dev);
 }
 void playAt(Sfx s, const V3& pos, float vol, float pitch) {
-    if (!dev) return;
+    if (!dev && !offline) return;
     V3 d = pos - listenerPos;
     float dist = len(d);
     float att = 1.f / (1.f + dist * dist * 0.004f);
     if (att < 0.03f) return;
     float pan = dist > 0.01f ? dot(d / dist, listenerRight) : 0;
     float pl = 1 - std::max(0.f, pan) * 0.6f, pr = 1 + std::min(0.f, pan) * 0.6f;
-    sdl::LockAudioDevice(dev);
+    if (dev) sdl::LockAudioDevice(dev);
     spawnSfx(s, vol * att, pitch, pl, pr);
-    sdl::UnlockAudioDevice(dev);
+    if (dev) sdl::UnlockAudioDevice(dev);
 }
 void setListener(const V3& pos, const V3& right) { listenerPos = pos; listenerRight = right; }
 void setSong(Song s) { pendingSong.store((int)s); }

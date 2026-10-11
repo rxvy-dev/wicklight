@@ -386,6 +386,10 @@ struct Game {
     // --- stats for victory
     bool justFinished = false;
 
+    // --- showcase recording: clean frame (no HUD/dialog), plus an overlay drawn on top
+    bool hideHUD = false;
+    std::function<void()> overlayUI;
+
     // --- autoplay/test hooks
     bool botActive = false;
     bool botAim = false; V3 botAimPoint;
