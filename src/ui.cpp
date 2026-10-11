@@ -279,6 +279,54 @@ void Game::drawHUD() {
         float a = 1 - f.t / 1.1f;
         R->uiTextCentered(sx, sy, f.text, s, V4(f.col.x, f.col.y, f.col.z, a));
     }
+    // signs above every door of light: where it goes (hidden behind walls)
+    if (dialog.empty() && lv.id != LV_HOME)
+        for (auto& e : lv.exits) {
+            V3 c = e.zone.center(); c.y = e.zone.hi.y + 2.4f;
+            float d = len(c - pl.pos);
+            if (d > 45 || d < 1.5f) continue;
+            V3 dv = c - camEye; float dl = len(dv);
+            float hit = raycast(camEye, dv / dl, dl);
+            if (hit >= 0 && hit < dl - 2.5f) continue;
+            float sx, sy;
+            if (!R->project(c, sx, sy)) continue;
+            bool open = e.needFlag.empty() || has(e.needFlag);
+            std::string t = e.label.empty() ? "Exit" : e.label;
+            float a = clampf((45 - d) / 10, 0, 1);
+            float w = R->uiTextWidth(t, s) + 8 * s;
+            R->uiFrame(sx - w / 2, sy - 6 * s, w, open ? 12 * s : 21 * s, V4(0.05f, 0.04f, 0.08f, 0.75f * a), open ? V4(1, 0.8f, 0.45f, a) : V4(0.5f, 0.4f, 0.6f, a));
+            R->uiTextCentered(sx, sy - 3 * s, t, s, open ? V4(1, 0.88f, 0.6f, a) : V4(0.75f, 0.7f, 0.8f, a));
+            if (!open) R->uiTextCentered(sx, sy + 6 * s, "(locked)", s, V4(0.6f, 0.5f, 0.7f, a));
+        }
+    // compass: N / E / S / W along the top of the screen (north is toward the Clockwood)
+    if (lv.id != LV_HOME || !vox.active) {
+        float cw = std::min(W * 0.34f, 180 * s), cx = W / 2, cy = 2 * s;
+        R->uiFrame(cx - cw / 2, cy, cw, 11 * s, C4(0x0c0a14, 0.6f), C4(0x4a3a30, 0.8f));
+        const float span = PI * 0.55f;  // half the field shown
+        auto rel = [&](float a) { float r = a - camYaw; while (r > PI) r -= TAU; while (r < -PI) r += TAU; return r; };
+        static const char* DIRS[8] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+        // in Wicklight, +z is north and +x is east; camYaw is atan2(x, z)
+        for (int k = 0; k < 16; k++) {
+            float r = rel(k * TAU / 16);
+            if (std::fabs(r) > span) continue;
+            float x = cx + r / span * (cw / 2 - 6 * s);
+            if (k % 2 == 0) {
+                bool card = k % 4 == 0;
+                R->uiTextCentered(x, cy + 2 * s, DIRS[k / 2], s, card ? (k == 0 ? C4(0xff7050) : COL_HI) : COL_DIM);
+            } else R->uiRect(x - s / 2, cy + 3 * s, s, 4 * s, C4(0x8a8098, 0.7f));
+        }
+        // doors of light show up on the compass too
+        for (auto& e : lv.exits) {
+            V3 d = e.zone.center() - pl.pos;
+            if (lenXZ(d) < 2 || lenXZ(d) > 120) continue;
+            float r = rel(std::atan2(d.x, d.z));
+            if (std::fabs(r) > span) continue;
+            float x = cx + r / span * (cw / 2 - 6 * s);
+            bool open = e.needFlag.empty() || has(e.needFlag);
+            R->uiRect(x - 1.5f * s, cy + 9 * s, 3 * s, 2 * s, open ? C4(0xffd070) : C4(0x8a6aaa));
+        }
+        R->uiRect(cx - s / 2, cy + 11 * s, s, 2 * s, COL_HI);
+    }
     // lantern upgrade prompt
     if (dialog.empty() && !boss.active)
         for (auto& l : lv.lanterns)
@@ -330,7 +378,7 @@ void Game::drawHUD() {
     }
     // boss bar
     if (boss.active && !boss.dead) {
-        float bw = std::min(W * 0.6f, 260 * s), bx = W / 2 - bw / 2, by = 10 * s;
+        float bw = std::min(W * 0.6f, 260 * s), bx = W / 2 - bw / 2, by = 16 * s;
         R->uiTextCentered(W / 2, by, boss.name, s, C4(0xe0d0ff));
         R->uiFrame(bx, by + 10 * s, bw, 7 * s, C4(0x100818, 0.9f), C4(0x6a4a8a));
         float frac = clampf(boss.hp / boss.maxHp, 0, 1);
@@ -355,7 +403,7 @@ void Game::drawHUD() {
     if (!boss.active) {
         for (auto& e : enemies) {
             if (!e.alive || (e.type != E_GLOOMKING && e.type != E_MEGABOT) || len(e.pos - pl.pos) > 30 || e.state == 0) continue;
-            float bw = std::min(W * 0.5f, 200 * s), bx = W / 2 - bw / 2, by = 10 * s;
+            float bw = std::min(W * 0.5f, 200 * s), bx = W / 2 - bw / 2, by = 16 * s;
             R->uiTextCentered(W / 2, by, e.type == E_GLOOMKING ? "THE GLOOM KING" : "MEGA-BOT 3000", s, C4(0xffd0a0));
             R->uiFrame(bx, by + 10 * s, bw, 6 * s, C4(0x100818, 0.9f), C4(0x8a6040));
             R->uiRect(bx + s, by + 11 * s, (bw - 2 * s) * clampf(e.hp / e.maxHp, 0, 1), 4 * s, C4(0xe08030));
@@ -706,8 +754,8 @@ void Game::drawTutorial() {
         float w = std::min(R->uiTextWidth(txt, s) + 10 * s, W * 0.4f);
         std::string wtxt = wrap(R, txt, s, w - 10 * s);
         int lines = 1 + (int)std::count(wtxt.begin(), wtxt.end(), '\n');
-        R->uiFrame(W - w - 6 * s, 6 * s, w, lines * 9 * s + 7 * s, C4(0x0c0a14, 0.7f), C4(0x6a5040));
-        R->uiText(W - w - 1 * s, 10 * s, wtxt, s, COL_HI);
+        R->uiFrame(W - w - 6 * s, 16 * s, w, lines * 9 * s + 7 * s, C4(0x0c0a14, 0.7f), C4(0x6a5040));
+        R->uiText(W - w - 1 * s, 20 * s, wtxt, s, COL_HI);
     }
     // basics checklist (until learned)
     if (!has("talk.marrow0") || has("tut.done")) return;

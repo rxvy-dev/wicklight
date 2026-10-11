@@ -63,7 +63,7 @@ void buildHub(Level& L, Game& g) {
     b.lampPost(V3(-42, 0, -5.5f), true);
     boat(b, V3(-57, -3.6f, 9), 0.2f);
     boat(b, V3(-55, -3.6f, -10), -0.3f, 0.8f);
-    b.exit(AABB(V3(-61, -3, -5), V3(-57, 2, 5)), LV_WHARF, 0, "", "", "To the Sunken Wharf");
+    b.exit(AABB(V3(-61, -3, -5), V3(-57, 2, 5)), LV_WHARF, 0, "", "", "WEST: The Sunken Wharf");
     b.hint(AABB(V3(-48, -3, -6), V3(-36, 3, 6)), "The Sunken Wharf lies beyond these docks.");
 
     // the Lighthouse Spire (square base with a door alcove, round tower above)
@@ -92,7 +92,7 @@ void buildHub(Level& L, Game& g) {
     // the Spire door and its three pedestals
     int door = b.gate(AABB(V3(-2, 0, -7.2f), V3(2, 5, -6.6f)), 50, "hub.spiredoor", T_DOOR);
     (void)door;
-    b.exit(AABB(V3(-1.8f, 0, -6.4f), V3(1.8f, 3, -3.2f)), LV_SPIRE, 0, "hub.spire", "The Spire door is sealed.", "Into the Spire");
+    b.exit(AABB(V3(-1.8f, 0, -6.4f), V3(1.8f, 3, -3.2f)), LV_SPIRE, 0, "hub.spire", "The Spire door is sealed.", "The Lighthouse Spire");
     for (int i = 0; i < 4; i++) {
         V3 p(-5.25f + i * 3.5f, 0, (i == 1 || i == 2) ? -10.5f : -9.8f);
         b.pillar(p.x, p.z, 0, 1.4f, 0.5f, T_MARBLE);
@@ -161,7 +161,7 @@ void buildHub(Level& L, Game& g) {
     b.lampPost(V3(2.5f, 0, 37), true);
     b.lampPost(V3(-2.5f, 0, 64), false);
     b.arch(V3(0, 0, 66.5f), 4, 4.5f, 1, T_STONEBRICK, true);
-    b.exit(AABB(V3(-2.5f, 0, 67), V3(2.5f, 4, 70)), LV_CLOCK, 0, "", "", "To the Clockwood");
+    b.exit(AABB(V3(-2.5f, 0, 67), V3(2.5f, 4, 70)), LV_CLOCK, 0, "", "", "NORTH: The Clockwood");
     b.hint(AABB(V3(-4, 0, 34), V3(4, 3, 44)), "The bridge is broken. Your flame can cross what your feet cannot...", "", "ab.warp");
     b.hint(AABB(V3(-4, 0, 34), V3(4, 3, 44)), "Throw your flame across [{THROW}], then WARP to it [{WARP}].", "ab.warp", "ab.grapple");
     b.hint(AABB(V3(-4, 0, 34), V3(4, 3, 44)), "Throw your flame onto the hook, then HOLD [{GRAPPLE}] to swing across on the Ember Grapple!", "ab.grapple");
@@ -182,7 +182,7 @@ void buildHub(Level& L, Game& g) {
     L.decor.box(AABB(V3(43.5f, 6, -5.5f), V3(53.5f, 6.6f, 5.5f)), T_OBSIDIAN, 1);
     L.decor.cone(M4::translate(V3(48.5f, 8, 0)) * M4::scale(V3(12, 3, 12)), T_OBSIDIAN, 4);
     b.seal(AABB(V3(44.1f, 0, -2.5f), V3(44.9f, 4.5f, 2.5f)), "hub.vaultseal");
-    b.exit(AABB(V3(46, 0, -3), V3(51, 3, 3)), LV_VAULTS, 0, "", "", "Down to the Ashen Vaults");
+    b.exit(AABB(V3(46, 0, -3), V3(51, 3, 3)), LV_VAULTS, 0, "", "", "EAST: The Ashen Vaults");
     b.hint(AABB(V3(38, 0, -5), V3(44, 3, 5)), "A seal of old red wax. Your flame alone cannot melt it.", "", "ab.bloom");
     b.hint(AABB(V3(38, 0, -5), V3(44, 3, 5)), "BLOOM [{BLOOM}] near the seal to melt it.", "ab.bloom", "hub.vaultseal");
     b.tomb(V3(40, 0, 4), PI); b.tomb(V3(40, 0, -4), 0);
@@ -207,19 +207,19 @@ void buildHub(Level& L, Game& g) {
     L.decor.cube(M4::translate(V3(-14, 5.9f, -44)) * M4::scale(V3(5, 0.5f, 0.15f)), T_WHITE);
     L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
     b.light(V3(-14, 5, -43), 9, hexColor(0xff50c0), 1.0f);
-    b.exit(AABB(V3(-16.5f, 0, -46.5f), V3(-11.5f, 4, -44.6f)), LV_JUNK, 0, "heart.2", "The Junkyard gate is rusted shut. (Clear the Ashen Vaults first)", "To the Junkyard");
+    b.exit(AABB(V3(-16.5f, 0, -46.5f), V3(-11.5f, 4, -44.6f)), LV_JUNK, 0, "heart.2", "The Junkyard gate is rusted shut. (Clear the Ashen Vaults first)", "SOUTH-WEST: The Junkyard");
     b.hint(AABB(V3(-18, -1, -44), V3(-10, 4, -36)), "The Junkyard of Lost Machines. Something squeaks in there...");
     b.spawn(V3(-14, 0, -40), 0);  // 5: from the Junkyard
     // portal to the Endless Dark (east of the Spire) and to Wick's Island (west)
     b.arch(V3(14, 0, 0), 3.2f, 4.2f, 1, T_OBSIDIAN, false);
-    b.exit(AABB(V3(13.6f, 0, -1.5f), V3(14.4f, 4, 1.5f)), LV_ENDLESS, 0, "talk.marrow0", "Talk to Marrow first.", "Into the Endless Dark");
+    b.exit(AABB(V3(13.6f, 0, -1.5f), V3(14.4f, 4, 1.5f)), LV_ENDLESS, 0, "talk.marrow0", "Talk to Marrow first.", "The Endless Dark (levels forever)");
     L.decor.emis = 2; L.decor.color = hexColor(0x9a5aff);
     L.decor.cube(M4::translate(V3(14, 5.4f, 0)) * M4::scale(V3(0.15f, 0.4f, 4.6f)), T_WHITE);
     L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
     b.light(V3(14, 3, 0), 8, hexColor(0x9a5aff), 1.0f);
     b.hint(AABB(V3(10, -1, -3), V3(13.5f, 4, 3)), "THE ENDLESS DARK: levels that never end. Each depth is harder - and pays better.");
     b.arch(V3(-14, 0, 0), 3.2f, 4.2f, 1, T_MARBLE, false);
-    b.exit(AABB(V3(-14.4f, 0, -1.5f), V3(-13.6f, 4, 1.5f)), LV_HOME, 0, "home.unlocked", "Wick's Island unlocks after you clear 10 depths of the Endless Dark.", "To Wick's Island");
+    b.exit(AABB(V3(-14.4f, 0, -1.5f), V3(-13.6f, 4, 1.5f)), LV_HOME, 0, "home.unlocked", "Wick's Island unlocks after you clear 10 depths of the Endless Dark.", "Wick's Island (your block world)");
     L.decor.emis = 2; L.decor.color = hexColor(0x60ff90);
     L.decor.cube(M4::translate(V3(-14, 5.4f, 0)) * M4::scale(V3(0.15f, 0.4f, 4.6f)), T_WHITE);
     L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
