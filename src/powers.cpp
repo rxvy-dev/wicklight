@@ -60,7 +60,7 @@ void Game::updateGrapple(float dt, const InputState& in) {
         p.flingT = 1.2f;
         if (pop) { p.vel.y = std::max(p.vel.y, 11.f); burst(p.pos + V3(0, 0.8f, 0), hexColor(0xffc060), 16, 4, 0.08f, 3, 0.4f, 0); audio::play(SFX_JUMP, 0.9f, 1.3f); }
         else p.vel.y += 2.5f;
-        p.airJumps = upLevel("jump");
+        p.airJumps = upLevel("jump") + petAirJumps();
         if (flame.st == F_HOVER) recallFlame();
     };
     if (!anchored || p.dead) { grappling = false; return; }

@@ -125,7 +125,6 @@ void Game::killPlayer() {
     if (pl.dead) return;
     pl.dead = true; pl.deadT = 0; pl.hp = 0;
     if (lv.id == LV_ARENA && gWave > 0) gLast = gWave;
-    if (lv.id == LV_CLIMB && climbOn) { climbLast = climbH; climbOn = false; }
     save.deaths++;
     audio::play(SFX_DEATH);
     flame.st = F_HELD;
@@ -164,7 +163,7 @@ void Game::updatePlayer(float dt, const InputState& in) {
     // jump buffering & coyote time
     if (in.pressed[A_JUMP]) p.jumpBuf = 0.16f;
     else p.jumpBuf = std::max(0.f, p.jumpBuf - dt);
-    if (p.grounded) { p.coyote = 0.13f; p.airTime = 0; p.airJumps = upLevel("jump"); }
+    if (p.grounded) { p.coyote = 0.13f; p.airTime = 0; p.airJumps = upLevel("jump") + petAirJumps(); }
     else { p.coyote = std::max(0.f, p.coyote - dt); p.airTime += dt; }
 
     // dash
@@ -172,7 +171,7 @@ void Game::updatePlayer(float dt, const InputState& in) {
     if (p.grounded) airDashUsed = false;
     if (in.pressed[A_DASH] && p.dashCd <= 0 && p.dashT <= 0 && !(airDashUsed && !p.grounded)) {
         p.dashDir = wl > 0.1f ? wish : V3(std::sin(p.yaw), 0, std::cos(p.yaw));
-        p.dashT = 0.17f; p.dashCd = 0.55f;
+        p.dashT = 0.17f; p.dashCd = raceNoPowers() ? 1.6f : 0.55f;
         if (!p.grounded) airDashUsed = true;
         audio::play(SFX_DASH);
         if (!has("tut.dash")) setFlag("tut.dash");
@@ -189,6 +188,7 @@ void Game::updatePlayer(float dt, const InputState& in) {
         }
     } else {
         float maxSpeed = toy(5) ? 11.5f : 7.2f;
+        if (lv.id == LV_RACE) maxSpeed = raceMaxSpeed(maxSpeed);
         if (flame.charging) maxSpeed = 4.0f;
         float accel = p.grounded ? 70.f : 28.f;
         V3 hv(p.vel.x, 0, p.vel.z);
@@ -333,7 +333,7 @@ void Game::doWarp() {
             pl.pos = t;
             pl.vel = V3(0, 2.5f, 0);
             pl.grounded = false;
-            pl.airJumps = upLevel("jump");
+            pl.airJumps = upLevel("jump") + petAirJumps();
             pl.invuln = std::max(pl.invuln, 0.25f);
             flame.st = F_HELD;
             flame.hitIds.clear();
@@ -583,6 +583,7 @@ void Game::breakUrn(int i) {
     if (b.broken) return;
     b.broken = true;
     bountyEvent(4, 1);
+    gainXp(1);
     static Rng r(4711);
     audio::playAt(SFX_BREAK, b.pos, 0.6f, 1.4f + r.f() * 0.4f);
     burst(b.pos + V3(0, 0.4f, 0), b.kind == 0 ? hexColor(0xa0603a) : hexColor(0x8a8090), 16, 4, 0.09f, 0, 0.7f, 14);

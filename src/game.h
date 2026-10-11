@@ -17,7 +17,7 @@ static const float PLAYER_H = 1.15f;
 static const float GRAVITY = 30.f;
 static const float SIM_DT = 1.f / 120.f;
 
-enum LevelId { LV_HUB = 0, LV_WHARF, LV_CLOCK, LV_VAULTS, LV_SPIRE, LV_JUNK, LV_ENDLESS, LV_HOME, LV_CITY, LV_ARENA, LV_CLIMB, LV_COUNT };
+enum LevelId { LV_HUB = 0, LV_WHARF, LV_CLOCK, LV_VAULTS, LV_SPIRE, LV_JUNK, LV_ENDLESS, LV_HOME, LV_CITY, LV_ARENA, LV_RACE, LV_COUNT };
 
 // ------------------------------------------------------------------ input
 enum Action { A_FWD, A_BACK, A_LEFT, A_RIGHT, A_JUMP, A_DASH, A_THROW, A_WARP, A_BLOOM, A_INTERACT, A_PAUSE, A_JOURNAL, A_GRAPPLE, A_FIREWALL, A_OVERCLOCK, A_COUNT };
@@ -96,7 +96,8 @@ struct SpawnPt { V3 pos; float yaw; };
 struct Anchor { V3 pos; float pulse = 0; };
 struct Hint { AABB zone; std::string text; std::string needFlag, hideFlag; };
 struct Talker { V3 pos; float yaw; int who; };  // who: 0 Marrow, 1 pedestals, 3 Sprocket (bot shop), 4 Gil, 5 Tilda, 6 Mort, 7 Rusty, 8 Pip,
-                                                 // 10 Bramble, 11 Mira, 12 Whiskers the cat, 13 Old Fenn, 14 Flick (race), 15 wardrobe mirror, 16 fishing spot
+                                                 // 10 Bramble, 11 Mira, 12 Whiskers the cat, 13 Old Fenn, 14 Flick (race), 15 wardrobe mirror, 16 fishing spot,
+                                                 // 17 Night Board, 18 Echo Statue, 19 Wren, 20-22 Candle Cup sign-ups, 23 Tamsin the pet keeper
 struct Spinner { V3 pos; float r, thick; int axis; float speed; int tile; V3 color; float angle = 0; };
 struct Emitter { AABB zone; int kind; float rate; float acc = 0; };  // 0 fireflies, 1 embers, 2 mist, 3 ash snow, 4 motes, 5 data rain, 6 city rain
 
@@ -149,7 +150,7 @@ struct Level {
     std::vector<Talker> talkers;
     std::vector<Spinner> spinners;
     std::vector<Emitter> emitters;
-    struct RouteStep { int op; V3 p; };  // 0 goto, 1 throw+warp, 2 throw+recall, 3 fight, 4 boss, 5 bloom, 9 moving lift
+    struct RouteStep { int op; V3 p; };  // 0 goto, 1 throw+warp, 2 throw+recall, 3 fight, 4 boss, 5 bloom
     std::vector<RouteStep> route;
     struct Breakable { V3 pos; int kind = 0; bool broken = false; };
     std::vector<Breakable> breakables;
@@ -218,6 +219,7 @@ struct Enemy {
     float burnT = 0;            // firewall damage tick
     int gen = 0;                // virus: 0 splits on death, 1 doesn't
     bool alerted = false;       // agent: has seen you
+    bool golden = false;        // a rare golden monster: tougher, and drops a fortune
 };
 
 enum ProjType { PR_TAR, PR_GEAR, PR_ORB, PR_DUST, PR_CODE, PR_BULLET };
@@ -270,7 +272,14 @@ struct SaveData {
     int kills = 0, bestCombo = 0, bounties = 0;     // lifetime stats (trophies)
     float rushBest = 0;                             // best Boss Rush time
     int gauntletBest = 0;                           // the Gauntlet: most waves survived
-    int climbBest = 0, climbRuns = 0;               // the Rising Dark: best height (m), runs
+    // Candle Cup racing
+    int raceRuns = 0, raceWins = 0, cupBest[3] = {0, 0, 0};   // cupBest: 0 none, 1 bronze, 2 silver, 3 gold
+    // pets: one of each kind (level 0 = not caught yet)
+    int petLv[8] = {0, 0, 0, 0, 0, 0, 0, 0}, petXp[8] = {0, 0, 0, 0, 0, 0, 0, 0}, petName[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    int activePet = -1, treats = 0, petsCaught = 0;
+    // Wick's level, the daily streak, golden monsters
+    int wlvl = 1, wxp = 0;
+    int streak = 0, streakDay = -1, bestStreak = 0, goldenKills = 0;
     int bountyDay = -1, bountyProg[3] = {0, 0, 0}, bountyDone = 0;  // the Night Board's daily bounties
     int fishCaught = 0;
     float raceBest = 0;                             // best candle-race time (0 = none)
@@ -297,7 +306,7 @@ static const int PIXEL_LINES[] = {180, 225, 270, 360, 540};
 static const int PIXEL_MODES = 5;
 
 // ------------------------------------------------------------------ screens
-enum Screen { SC_TITLE, SC_INTRO, SC_PLAY, SC_PAUSE, SC_SETTINGS, SC_CONTROLS, SC_JOURNAL, SC_ENDING, SC_VICTORY, SC_CREDITS, SC_CONFIRM_NEW, SC_HOWTO, SC_SHOP, SC_BOTSHOP, SC_CRAFT, SC_SUPPLY, SC_CHEST, SC_DYES, SC_TOYS };
+enum Screen { SC_TITLE, SC_INTRO, SC_PLAY, SC_PAUSE, SC_SETTINGS, SC_CONTROLS, SC_JOURNAL, SC_ENDING, SC_VICTORY, SC_CREDITS, SC_CONFIRM_NEW, SC_HOWTO, SC_SHOP, SC_BOTSHOP, SC_CRAFT, SC_SUPPLY, SC_CHEST, SC_DYES, SC_TOYS, SC_PETS };
 
 struct DialogLine { std::string who; std::string text; };
 
@@ -421,13 +430,50 @@ struct Game {
     void rushStageEnter();
     void drawDyes(); void updateDyes(const InputState& in);
     void drawJournalPage2();
-    // --- fun forever: the Toy Box (silly modes), the Gauntlet (endless waves), the Rising Dark (endless climb)
+    // --- fun forever: the Toy Box (silly modes), the Gauntlet (endless waves)
     bool toy(int i) const { return has("toy." + std::to_string(i)); }
     void drawToys(); void updateToys(const InputState& in);
     int gWave = 0, gState = 0, gMod = -1, gQueue = 0, gLast = 0; float gT = 0, gSpawnT = 0;
     std::vector<V3> pendingBlasts;
     float killSlowT = 0;
-    float tideY = -6, tideSpeed = 1.2f; bool climbOn = false; int climbH = 0, climbLast = -1;
+    // --- the Candle Cup: race rival candles round a new track every time (racing.cpp)
+    struct Racer {
+        std::string name; int color = 0, wax = 0;
+        float s = 0; int lap = 0; float lane = 0, laneTarget = 0, speed = 0, skill = 0;
+        float stunT = 0, boostT = 0, hopT = 0, shieldT = 0, itemT = 0; int item = -1;
+        V3 pos; float yaw = 0; bool done = false; float doneT = 0; int place = 0, cp = 0;
+        float boxCd = 0;
+    };
+    std::vector<Racer> racers;                 // [0] is Wick
+    std::vector<V3> track; std::vector<float> trackS; float trackLen = 1, trackHw = 4.5f;
+    struct RaceProp { V3 pos; int kind = 0; float s = 0, lane = 0, t = 0, cd = 0; bool alive = true; };  // 0 boost pad, 1 item box, 2 tar, 3 wax slick, 4 crate
+    std::vector<RaceProp> rprops;
+    struct Bolt2 { V3 pos; int target = -1; float life = 2; };
+    std::vector<Bolt2> rbolts;
+    int rcCup = 0, rcRace = 0, rcState = 0, rcPts[5] = {0, 0, 0, 0, 0}, rcIdx = 0;  // state 0 paddock, 1 countdown, 2 racing, 3 results
+    bool rcPending = false; float rcT = 0, rcOffT = 0, rcWrongT = 0, rcEndT = 0;
+    float raceMaxSpeed(float normal) const;
+    bool raceNoPowers() const { return lv.id == LV_RACE && rcState >= 1; }
+    void updateRace(float dt, const InputState& in);
+    void startCup(int cup);
+    // --- pets: catch little creatures, they follow you, help out, level up and evolve (pets.cpp)
+    struct WildPet { int kind = 0; V3 pos, vel, home, target; float t = 0, daze = 0, flee = 0, yaw = 0, hop = 0; bool alive = true; };
+    std::vector<WildPet> wildPets; int wildLevelId = -1; float wildRespawnT = 0;
+    V3 petPos; float petYaw = 0, petHop = 0, petT = 0, petHealT = 0, petSpitT = 0, petHowlT = 0, petDigT = 0, petFlash = 0;
+    bool petMenuShop = false; int petAct = 0;
+    void updatePets(float dt, const InputState& in, bool& usedE);
+    void spawnWildPets(int n);
+    void petXp(int kind, int xp);
+    float petMagnet() const;
+    int petAirJumps() const;
+    float petEmberBonus() const;
+    float petXpBonus() const;
+    void drawPets(); void updatePetMenu(const InputState& in);
+    // --- progression: Wick's level, daily streak gifts, golden monsters (progress.cpp)
+    float lvlUpT = 0; bool streakChecked = false;
+    void gainXp(int xp, V3 at = V3(0, -999, 0));
+    void checkStreak();
+    void goldenKilled(Enemy& e);
     float gravityMul() const;
     float enemySpeedMul() const;
     void updateFunModes(float dt);

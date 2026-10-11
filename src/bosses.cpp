@@ -146,6 +146,7 @@ void Game::bossDamage(int wp, float dmg, bool charged) {
 bool rushBossDown(Game& g);
 void Game::bossDefeated() {
     bountyEvent(6, 1);
+    gainXp(150, boss.pos);
     if (bossHurt == 0) setFlag("boss.flawless");
     if (rushBossDown(*this)) return;
     setFlag(lv.boss.flag);

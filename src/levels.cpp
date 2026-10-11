@@ -275,7 +275,7 @@ void buildHub(Level& L, Game& g) {
     b.solid(AABB(V3(-10.8f, 0, -11.8f), V3(-9.2f, 3, -10.2f)), T_MARBLE, -1, V3(1, 1, 1), false);
     if (g.has("game.finished")) b.light(V3(-10, 3.5f, -11), 6, hexColor(0xa060ff), 1.0f);
     b.talker(V3(9.5f, 0, -8.5f), -2.2f, 19);
-    // fun forever: the Gauntlet (endless waves) and the Rising Dark (endless climb)
+    // fun forever: the Gauntlet (endless waves) and the Candle Cup (racing)
     b.arch(V3(-31, 0, -19.5f), 3.0f, 4.2f, 1, T_STONEBRICK, false);
     L.decor.emis = 2; L.decor.color = hexColor(0xff5040);
     L.decor.cube(M4::translate(V3(-31, 5.4f, -19.5f)) * M4::scale(V3(0.15f, 0.4f, 4.4f)), T_WHITE);
@@ -287,9 +287,15 @@ void buildHub(Level& L, Game& g) {
     L.decor.cube(M4::translate(V3(31, 5.4f, -19.5f)) * M4::scale(V3(0.15f, 0.4f, 4.4f)), T_WHITE);
     L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
     b.light(V3(30, 3, -19.5f), 8, hexColor(0x80ff80), 1.0f);
-    b.exit(AABB(V3(30.6f, 0, -21), V3(31.4f, 4, -18)), LV_CLIMB, 0, "ab.warp", "The Rising Dark needs WARP (beat the Sunken Wharf's boss first).", "The Rising Dark (endless climb)");
+    b.exit(AABB(V3(30.6f, 0, -21), V3(31.4f, 4, -18)), LV_RACE, 0, "talk.marrow0", "Talk to Marrow first.", "The Candle Cup (racing)");
     b.spawn(V3(-28.5f, 0, -19.5f), PI / 2);    // 9: back from the Gauntlet
-    b.spawn(V3(28.5f, 0, -19.5f), -PI / 2);  // 10: back from the Rising Dark
+    b.spawn(V3(28.5f, 0, -19.5f), -PI / 2);  // 10: back from the Candle Cup
+    // Tamsin's pet pen (pets: catch them, raise them)
+    b.talker(V3(-20, 0, 12), PI / 2, 23);
+    for (int i = 0; i < 6; i++) { float x = -23.5f + i * 1.4f; b.post(V3(x, 0, 14.2f), 0.9f, 0.08f, T_DARKWOOD); }
+    L.decor.cube(M4::translate(V3(-20, 0.75f, 14.2f)) * M4::scale(V3(7.2f, 0.12f, 0.1f)), T_PLANK);
+    L.decor.cube(M4::translate(V3(-20, 0.4f, 14.2f)) * M4::scale(V3(7.2f, 0.12f, 0.1f)), T_PLANK);
+    b.hint(AABB(V3(-24, -1, 9), V3(-16, 3, 15)), "Tamsin's pet pen. Talk to Tamsin about catching pets, and buy treats for them.");
     // the wardrobe mirror in Marrow's workshop (change hats)
     b.talker(V3(5.6f, 0, -25.5f), -PI / 2, 15);
     b.hint(AABB(V3(3.5f, 0, -27.5f), V3(6.4f, 3, -23.5f)), "A tall old mirror. [{INTERACT}] to try on the hats you've found.");

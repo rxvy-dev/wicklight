@@ -24,6 +24,10 @@ void Game::spawnEnemy(EnemyType t, V3 pos, int arena) {
         case E_AGENT: e.hp = 3; e.radius = 0.4f; e.height = 1.8f; e.cd = 1.0f; e.target = pos + V3(std::sin(e.yaw) * 5, 0, std::cos(e.yaw) * 5); break;
     }
     if (lv.id == LV_ENDLESS || lv.id == LV_ARENA) e.hp = std::ceil(e.hp * ((e.type == E_MEGABOT || e.type == E_GLOOMKING) ? std::min(enemyHpMul, 1.5f) : enemyHpMul));
+    // now and then, a GOLDEN one: twice as tough, drops a fortune
+    if ((!botActive || getenv("WICKLIGHT_GOLDEN")) && t != E_GLOOMKING && t != E_MEGABOT && t != E_DECOY && !boss.active && !rushActive && erng.f() < (getenv("WICKLIGHT_GOLDEN") ? 1.f : 1.f / 35)) {
+        e.golden = true; e.hp *= 2;
+    }
     e.maxHp = e.hp;
     enemies.push_back(e);
     if (arena >= 0) burst(pos + V3(0, 0.8f, 0), hexColor(0x6a3aaa), 20, 4, 0.12f, 2, 0.8f, -1);
@@ -105,7 +109,7 @@ void Game::damageEnemy(Enemy& e, float dmg, V3 from, bool charged) {
         burst(e.pos + V3(0, e.height * 0.5f, 0), hexColor(0x9a5aff), 12, 5, 0.07f, 3, 0.6f, 0);
         addShake(0.12f);
         static const int REWARD[] = {3, 5, 2, 8, 6, 40, 60, 2, 1, 4, 0, 6};
-        int amount = (int)std::lround(REWARD[e.type] * comboMult());
+        int amount = (int)std::lround(REWARD[e.type] * comboMult() * (1 + petEmberBonus()));
         dropEmbers(e.pos, amount);
         if (e.type == E_GLOOMKING) {
             for (int k = 0; k < 3; k++) pendingSpawns.push_back({E_GLOOMLING, e.pos + V3(std::cos(k * 2.1f) * 1.5f, 0.5f, std::sin(k * 2.1f) * 1.5f), e.arena});

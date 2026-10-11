@@ -599,6 +599,7 @@ int runFeatureTest(Game& g, const std::string& which) {
         return fails ? 2 : 0;
     }
     if (which == "fun") {
+        auto xpNeedForTest = [](int l) { extern int xpNeed(int); return xpNeed(l); };
         freshFeatureSave(g);
         g.godMode = true;
         int fails = 0;
@@ -628,52 +629,136 @@ int runFeatureTest(Game& g, const std::string& which) {
             g.dialog.clear(); if (g.screen != SC_PLAY) g.screen = SC_PLAY;
         }
         check("the Gauntlet: survive 6 waves", g.save.gauntletBest >= 6, "best wave " + std::to_string(g.save.gauntletBest) + " in " + std::to_string((int)t) + "s");
-        // 3. the Rising Dark: an endless climb with a rising tide
-        g.enterLevel(LV_CLIMB, 0); g.dialog.clear();
+        // 3. the Candle Cup: race a whole cup with the bot driving along the track
         {
-            auto& R = g.lv.route;
-            // every step must be makeable: small jumps, or a hook within warp range
-            int bad = 0;
-            for (size_t i = 1; i < R.size(); i++) {
-                float dy = R[i].p.y - R[i - 1].p.y, dxz = lenXZ(R[i].p - R[i - 1].p);
-                bool hook = R[i].op == 1;
-                if (dy <= 0 || dy > (hook ? 5.0f : 1.6f) || dxz > (hook ? 13.5f : 10.5f)) { bad++; printf("   bad gap %zu: op %d dy %.2f dxz %.2f\n", i, R[i].op, dy, dxz); }
+            g.setFlag("talk.marrow0");
+            g.enterLevel(LV_RACE, 0); g.dialog.clear();
+            int raceN = 0, podiums = 0, M0 = (int)g.track.size();
+            check("Candle Cup: paddock built with a looping track", M0 > 80 && g.trackLen > 150, std::to_string(M0) + " samples, " + std::to_string((int)g.trackLen) + "m long");
+            int testCup = getenv("WL_CUP") ? atoi(getenv("WL_CUP")) : 0;
+            g.startCup(testCup);
+            float tt = 0, lastS = 0; int stuckT = 0;
+            uint32_t seed0 = 0; int prevState = 0;
+            while (tt < 900 && (g.rcState != 0 || g.rcPending || raceN == 0 || g.transitioning || !g.dialog.empty())) {
+                InputState in;
+                if (g.lv.id == LV_RACE && g.rcState == 2 && !g.racers.empty() && !g.racers[0].done) {
+                    // steer at a point a few metres ahead on the racing line
+                    int M = (int)g.track.size();
+                    V3 aim = g.track[(g.rcIdx + 4) % M];
+                    V3 to = flatXZ(aim - g.pl.pos);
+                    float yaw = std::atan2(to.x, to.z);
+                    g.camYaw = yaw; g.pl.yaw = yaw;
+                    in.moveY = 1;
+                    if (g.racers[0].item >= 0 && std::fmod(tt, 1.5f) < SIM_DT) in.pressed[A_INTERACT] = true;
+                    if (std::fabs(g.racers[0].s - lastS) < 0.01f) stuckT++; else stuckT = 0;
+                    lastS = g.racers[0].s;
+                }
+                bool justEnded = g.lv.id == LV_RACE && g.rcState == 3 && prevState != 3;
+                prevState = g.rcState;
+                if (justEnded) {
+                    if (getenv("WL_RACE")) for (auto& r : g.racers) printf("     %s place %d lap %d s %.0f done %.1f\n", r.name.c_str(), r.place, r.lap, r.s, r.doneT);
+                    raceN++; if (g.racers[0].place <= 3) podiums++;
+                    printf("[bot] fun:   race %d: place %d  time %.1fs  (track %dm)\n", raceN, g.racers[0].place, g.racers[0].doneT, (int)g.trackLen);
+                    if (raceN == 1) seed0 = (uint32_t)g.trackLen;
+                }
+                g.update(SIM_DT, in); tt += SIM_DT;
+                if (!g.dialog.empty()) { InputState a; a.pressed[A_INTERACT] = true; g.update(SIM_DT, a); }
+                if (stuckT > 600) break;
             }
-            check("Rising Dark: 420 platforms, every gap makeable", R.size() == 421 && bad == 0, std::to_string(bad) + " bad gaps, top at " + std::to_string((int)R.back().p.y) + "m");
-            // the bot climbs for real until the first moving lift
-            Bot cb(g); cb.airOk = false;
-            size_t lim = 1;
-            while (lim < R.size() && R[lim].op != 9 && lim < 14) lim++;
-            for (size_t i = 1; i < lim; i++) {
-                if (R[i].op == 0) cb.cmds.push_back(G(R[i].p.x, R[i].p.y, R[i].p.z));
-                if (R[i].op == 1) { cb.cmds.push_back(TW(R[i].p.x, R[i].p.y + 2.2f, R[i].p.z)); cb.cmds.push_back(W(0.3f)); cb.cmds.push_back(G(R[i].p.x, R[i].p.y, R[i].p.z)); }
-            }
-            float tt = 0;
-            if (getenv("WL_CLIMB")) for (size_t i = 0; i < lim; i++) printf("   route %zu op %d (%.1f %.1f %.1f)\n", i, R[i].op, R[i].p.x, R[i].p.y, R[i].p.z);
-            while (tt < 60 && cb.step() && !g.pl.dead) {
-                g.update(SIM_DT, cb.in); tt += SIM_DT; g.dialog.clear();
-                if (getenv("WL_CLIMB") && std::fmod(tt, 0.25f) < SIM_DT) printf("   t=%.2f pc=%zu pos=(%.1f %.1f %.1f) gnd=%d fails=%d\n", tt, cb.pc, g.pl.pos.x, g.pl.pos.y, g.pl.pos.z, (int)g.pl.grounded, cb.failures);
-            }
-            for (int k = 0; k < 60; k++) g.update(SIM_DT, InputState());
-            float want = R[lim - 1].p.y;
-            check("Rising Dark: the bot climbs the first platforms", g.climbOn && g.pl.pos.y > want - 0.5f && !g.pl.dead, "reached " + std::to_string(g.pl.pos.y) + " of " + std::to_string(want) + " (" + std::to_string(lim - 1) + " platforms)");
-            // then hop up the rest of the tower: the height counter and the tide follow you
-            for (size_t i = lim; i < 120; i++) {
-                if (R[i].op == 9) continue;
-                g.pl.pos = R[i].p + V3(0, 0.05f, 0); g.pl.vel = V3(0, 0, 0);
-                for (int k = 0; k < 30; k++) g.update(SIM_DT, InputState());
+            check("Candle Cup: 3 races run, cup finished", raceN == 3 && g.rcState == 0 && g.lv.id == LV_RACE, std::to_string(raceN) + " races in " + std::to_string((int)tt) + "s, stuck " + std::to_string(stuckT));
+            check("Candle Cup: the bot gets on the podium in the Ember Cup", podiums >= 2 && g.save.cupBest[0] >= 1, "best " + std::to_string(g.save.cupBest[0]) + ", podiums " + std::to_string(podiums));
+            check("Candle Cup: a new track each race", (uint32_t)g.trackLen != seed0 || seed0 == 0);
+            // items: a Spark Bolt from the back hits the racer in front; a Wax Slick spins out whoever runs over it
+            g.startCup(0);
+            for (int k = 0; k < 200 && (g.transitioning || g.rcState != 2); k++) g.update(SIM_DT, InputState());
+            for (int k = 0; k < 120 * 3; k++) g.update(SIM_DT, InputState());
+            int ahead = -1; for (int k = 1; k < 5; k++) if (g.racers[k].place == g.racers[0].place - 1) ahead = k;
+            g.racers[0].item = 1;
+            { InputState a; a.pressed[A_INTERACT] = true; g.update(SIM_DT, a); }
+            bool zapped = false;
+            for (int k = 0; k < 240 && !zapped; k++) { g.update(SIM_DT, InputState()); if (ahead > 0 && g.racers[ahead].stunT > 0) zapped = true; }
+            check("Candle Cup: Spark Bolt zaps the racer ahead", zapped, ahead > 0 ? g.racers[ahead].name : std::string("nobody ahead"));
+            g.enterLevel(LV_HUB, 10); g.dialog.clear();
+            check("Candle Cup: leaving mid-race cancels the cup", g.rcState == 0 && g.racers.empty());
+        }
+        // 4. pets: catch one with the flame, it follows, earns XP, levels up; Tamsin sells treats
+        {
+            setenv("WICKLIGHT_PETS", "1", 1);
+            g.enterLevel(LV_HUB, 10); g.dialog.clear();
+            for (int k = 0; k < 10; k++) g.update(SIM_DT, InputState());
+            check("pets: wild pets appear in the Hollow", !g.wildPets.empty(), std::to_string(g.wildPets.size()) + " wild");
+            if (!g.wildPets.empty()) {
+                auto& w = g.wildPets[0];
+                int kind = w.kind;
+                g.pl.pos = w.pos + V3(0, 0, -6); g.pl.vel = V3(); g.pl.safePos = g.pl.pos;
+                // throw the flame straight at it
+                g.botAim = true; g.botAimPoint = w.pos + V3(0, 0.4f, 0);
+                InputState th; th.pressed[A_THROW] = true; th.down[A_THROW] = true;
+                g.update(SIM_DT, th);
+                InputState rel; rel.released[A_THROW] = true;
+                g.update(SIM_DT, rel);
+                bool dazed = false;
+                for (int k = 0; k < 120 && !dazed; k++) { g.update(SIM_DT, InputState()); for (auto& x : g.wildPets) if (x.daze > 0) dazed = true; }
+                g.botAim = false;
+                check("pets: the thrown flame dazes a wild pet", dazed);
+                for (auto& x : g.wildPets) if (x.daze > 0) { g.pl.pos = x.pos + V3(0.8f, 0, 0); g.pl.vel = V3(); }
+                for (int k = 0; k < 10; k++) g.update(SIM_DT, InputState());
+                { InputState e; e.pressed[A_INTERACT] = true; g.update(SIM_DT, e); }
                 g.dialog.clear();
+                check("pets: caught it, and it's your buddy", g.save.petLv[kind] == 1 && g.save.activePet == kind && g.save.petsCaught == 1, std::string(g.save.activePet >= 0 ? "kind " + std::to_string(g.save.activePet) : "no buddy"));
+                V3 pp0 = g.petPos;
+                g.pl.pos = g.pl.pos + V3(5, 0, 0); g.pl.vel = V3();
+                for (int k = 0; k < 240; k++) g.update(SIM_DT, InputState());
+                check("pets: your buddy follows you", len(g.petPos - g.pl.pos) < 3 && len(g.petPos - pp0) > 3, "gap " + std::to_string(len(g.petPos - g.pl.pos)));
+                g.save.treats = 6;
+                g.screen = SC_PETS; g.shopSel = kind; g.petAct = 1;
+                for (int k = 0; k < 6; k++) { InputState ok; ok.mOk = true; g.updateMenus(SIM_DT, ok); }
+                g.screen = SC_PLAY;
+                check("pets: treats level a pet up", g.save.petLv[kind] >= 3 && g.save.treats == 0, "Lv " + std::to_string(g.save.petLv[kind]));
+                for (int k = 0; k < 60; k++) g.petXp(kind, 40);
+                check("pets: evolves at 5 and maxes at 10", g.save.petLv[kind] == 10);
             }
-            int h = g.climbH;
-            check("Rising Dark: height counts and the tide follows", h > 150 && g.tideY > g.pl.pos.y - 23 && g.tideY < g.pl.pos.y, "height " + std::to_string(h) + "m, tide " + std::to_string((int)(g.pl.pos.y - g.tideY)) + "m below");
-            // stand still and let the dark catch up
-            int runs = g.save.climbRuns, emb = g.save.embers;
-            for (int k = 0; k < 120 * 30 && g.save.climbRuns == runs; k++) g.update(SIM_DT, InputState());
-            for (int k = 0; k < 120 * 4; k++) { g.update(SIM_DT, InputState()); g.dialog.clear(); }
-            check("Rising Dark: the tide ends the run and saves the record", g.save.climbRuns == runs + 1 && g.save.climbBest == h && g.save.embers > emb && g.lv.id == LV_CLIMB && !g.climbOn && g.pl.pos.y < 1, "best " + std::to_string(g.save.climbBest) + "m");
+            // Tamsin
+            int tam = -1; for (int i = 0; i < (int)g.lv.talkers.size(); i++) if (g.lv.talkers[i].who == 23) tam = i;
+            int tr0 = g.save.treats, emb0 = (g.save.embers += 100);
+            if (tam >= 0) { g.talk(tam); while (!g.dialog.empty()) { InputState a; a.pressed[A_INTERACT] = true; g.update(SIM_DT, a); } }
+            bool menu = g.screen == SC_PETS && g.petMenuShop;
+            g.shopSel = 8; { InputState ok; ok.mOk = true; g.updateMenus(SIM_DT, ok); }
+            g.screen = SC_PLAY;
+            check("pets: Tamsin gives 3 treats, sells 3 more for 30 embers", tam >= 0 && menu && g.save.treats == tr0 + 6 && g.save.embers == emb0 - 30, "treats " + std::to_string(g.save.treats));
+            unsetenv("WICKLIGHT_PETS");
+        }
+        // 5. progression: XP and levels, the daily streak, golden monsters
+        {
+            setenv("WICKLIGHT_XP", "1", 1); setenv("WICKLIGHT_STREAK", "1", 1);
+            int emb0 = g.save.embers;
+            g.save.wlvl = 1; g.save.wxp = 0;
+            g.gainXp(500);
+            check("progress: XP levels Wick up and pays out", g.save.wlvl >= 3 && g.save.embers > emb0, "Lv " + std::to_string(g.save.wlvl));
+            g.save.wlvl = 4; g.save.wxp = 0; g.gainXp(xpNeedForTest(4));
+            check("progress: level 5 gives a hat", g.save.wlvl == 5 && g.has("hat.11"));
+            setenv("WICKLIGHT_DAY", "1000", 1); g.save.streakDay = 999; g.save.streak = 5; g.streakChecked = false; g.dialog.clear(); g.toastT = 0; g.areaTitleT = 0;
+            for (int k = 0; k < 3; k++) g.update(SIM_DT, InputState());
+            check("progress: daily streak continues", g.save.streak == 6 && g.save.streakDay == 1000, "streak " + std::to_string(g.save.streak));
+            setenv("WICKLIGHT_DAY", "1001", 1); g.streakChecked = false; g.toastT = 0; g.dialog.clear(); size_t wp = g.wildPets.size();
+            for (int k = 0; k < 3; k++) g.update(SIM_DT, InputState());
+            bool star = false; for (auto& w : g.wildPets) if (w.kind == 7) star = true;
+            check("progress: day 7 jackpot brings a Starling", g.save.streak == 7 && star && g.wildPets.size() > wp);
+            setenv("WICKLIGHT_DAY", "1005", 1); g.streakChecked = false; g.toastT = 0; g.dialog.clear();
+            for (int k = 0; k < 3; k++) g.update(SIM_DT, InputState());
+            check("progress: a missed day resets the streak", g.save.streak == 1 && g.save.bestStreak == 7);
+            setenv("WICKLIGHT_GOLDEN", "1", 1);
+            g.spawnEnemy(E_GLOOMLING, g.pl.pos + V3(0, 0.3f, 3), -1);
+            Enemy& ge = g.enemies.back();
+            bool golden = ge.golden; int gk = g.save.goldenKills;
+            g.damageEnemy(ge, 99, g.pl.pos, false);
+            check("progress: golden monsters spawn and pay out", golden && g.save.goldenKills == gk + 1);
+            unsetenv("WICKLIGHT_GOLDEN"); unsetenv("WICKLIGHT_XP"); unsetenv("WICKLIGHT_STREAK"); unsetenv("WICKLIGHT_DAY");
         }
         g.writeSave(); SaveData keep = g.save; g.save = SaveData(); g.loadGame();
-        check("save/load keeps Gauntlet and climb records", g.save.gauntletBest == keep.gauntletBest && g.save.climbBest == keep.climbBest && g.save.climbRuns == keep.climbRuns);
+        bool petsSame = true; for (int k = 0; k < 8; k++) if (g.save.petLv[k] != keep.petLv[k] || g.save.petXp[k] != keep.petXp[k] || g.save.petName[k] != keep.petName[k]) petsSame = false;
+        check("save/load keeps Gauntlet, cup, pets and level", g.save.gauntletBest == keep.gauntletBest && g.save.cupBest[0] == keep.cupBest[0] && g.save.raceRuns == keep.raceRuns && petsSame &&
+              g.save.activePet == keep.activePet && g.save.treats == keep.treats && g.save.wlvl == keep.wlvl && g.save.wxp == keep.wxp && g.save.streak == keep.streak && g.save.goldenKills == keep.goldenKills);
         printf("[bot] fun: %s (%d failures)\n", fails ? "FAIL" : "PASS", fails);
         return fails ? 2 : 0;
     }

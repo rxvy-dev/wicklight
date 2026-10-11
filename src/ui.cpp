@@ -54,7 +54,7 @@ static std::vector<std::string> menuItems(Game& g) {
             v.push_back("New Game"); v.push_back("How to play"); v.push_back("Settings"); v.push_back("Credits"); v.push_back("Quit");
             break;
         case SC_CONFIRM_NEW: v = {"Yes, start over", "No, go back"}; break;
-        case SC_PAUSE: v = {"Resume", "Journal", "Settings", "Return to last lantern", "How to play", "Toy Box (silly modes!)", "Quit to title"}; break;
+        case SC_PAUSE: v = {"Resume", "Journal", "Settings", "Return to last lantern", "How to play", "Toy Box (silly modes!)", "Pets", "Quit to title"}; break;
         case SC_SETTINGS: {
             char sens[16]; snprintf(sens, sizeof(sens), "%.1f", g.settings.sensitivity);
             static const char* sh[] = {"Off", "Low", "High"};
@@ -123,6 +123,7 @@ void Game::updateMenus(float dt, const InputState& in) {
     }
     if (screen == SC_DYES) { updateDyes(in); return; }
     if (screen == SC_TOYS) { updateToys(in); return; }
+    if (screen == SC_PETS) { updatePetMenu(in); return; }
     if (screen == SC_SHOP) { updateShop(in); return; }
     if (screen == SC_BOTSHOP) { updateBotShop(in); return; }
     if (screen == SC_CRAFT) { updateCraft(in); return; }
@@ -178,7 +179,8 @@ void Game::updateMenus(float dt, const InputState& in) {
                 else if (menuSel == 3) { screen = SC_PLAY; respawnAtLantern(); }
                 else if (menuSel == 4) { prevJournalScreen = SC_PAUSE; screen = SC_HOWTO; }
                 else if (menuSel == 5) { screen = SC_TOYS; shopSel = 0; }
-                else if (menuSel == 6) {
+                else if (menuSel == 6) { screen = SC_PETS; shopSel = std::max(0, save.activePet); petAct = 0; petMenuShop = false; }
+                else if (menuSel == 7) {
                     writeSave();
                     screen = SC_TITLE; menuSel = 0;
                     buildLevel(LV_HUB); applyFlagsToLevel(); enemies.clear(); boss = Boss();
@@ -427,9 +429,10 @@ void Game::drawHUD() {
         if (len(tk.pos - pl.pos) < 3.0f && dialog.empty()) {
             static const char* names[] = {"Talk to Marrow", "Inspect the pedestals", "", "Sprocket's Robot Friends", "Talk to Gil", "Talk to Tilda", "Talk to Mort", "Talk to Rusty", "Talk to Pip", "Blueprint Table (build)", "Bramble's Supplies",
                                           "Talk to Mira", "Pet Whiskers", "Talk to Old Fenn", "Candle race with Flick", "Wardrobe mirror (change hat)", "Fish here",
-                                          "Read the Night Board (daily bounties)", "Echo Statue (Boss Rush)", "Wren's Flame Dyes"};
+                                          "Read the Night Board (daily bounties)", "Echo Statue (Boss Rush)", "Wren's Flame Dyes",
+                                          "Ember Cup (easy)", "Lantern Cup (medium)", "Inferno Cup (hard)", "Tamsin the Pet Keeper"};
             if (tk.who == 16 && fishState > 0) continue;
-            std::string what = names[std::max(0, std::min(19, tk.who))];
+            std::string what = names[std::max(0, std::min(23, tk.who))];
             std::string p = "[" + bindingName(settings.keys[A_INTERACT]) + "] " + what;
             float sx, sy;
             if (R->project(tk.pos + V3(0, 2.8f, 0), sx, sy)) {
@@ -686,6 +689,7 @@ void Game::drawUI() {
         case SC_SHOP: drawShop(); break;
         case SC_DYES: drawDyes(); break;
         case SC_TOYS: drawToys(); break;
+        case SC_PETS: drawPets(); break;
         case SC_BOTSHOP: drawBotShop(); break;
         case SC_CRAFT: drawCraft(); break;
         case SC_SUPPLY: drawSupply(); break;
@@ -700,7 +704,7 @@ void Game::drawUI() {
             bool all = countFlags("shard.") >= 7 && countFlags("candle.") >= 10;
             drawFriendPlug(R, W, H, s, time);
             R->uiTextCentered(W / 2, H * 0.5f, all ? "Every memory remembered. Every shard found. Marrow would be proud." : "Some memories still flicker in the dark corners of the Hollow...", s, C4(0xc0b0a0));
-            R->uiTextCentered(W / 2, H * 0.5f + 12 * s, "Keep playing: daily bounties on the Night Board, the Boss Rush at the Echo Statue, flame dyes,\nthe Endless Dark, Lumen City, hats, fishing, races and 30 trophies (Journal, page 2).", s, C4(0xa0d0a0));
+            R->uiTextCentered(W / 2, H * 0.5f + 12 * s, "Keep playing: daily bounties on the Night Board, the Boss Rush at the Echo Statue, flame dyes,\nthe Endless Dark, Lumen City, hats, fishing, the Candle Cup, pets and 40 trophies (Journal, page 2).", s, C4(0xa0d0a0));
             if (screenT > 1.0f) drawMenu(nullptr, menuItems(*this), menuSel, H * 0.62f);
         } break;
         default: break;
@@ -761,7 +765,7 @@ void Game::drawTutorial() {
     float W = (float)R->winW;
     // current goal, top right
     std::string obj = currentObjective();
-    if (!obj.empty() && !(boss.active && !boss.dead)) {
+    if (!obj.empty() && !(boss.active && !boss.dead) && !(lv.id == LV_RACE && rcState > 0)) {
         std::string txt = "GOAL: " + obj;
         float w = std::min(R->uiTextWidth(txt, s) + 10 * s, W * 0.4f);
         std::string wtxt = wrap(R, txt, s, w - 10 * s);
@@ -826,10 +830,21 @@ void Game::drawHowTo() {
         "  Bosses have a moment of weakness - watch for the glow.\n"
         "  Hacked terminals flash a sequence: burn them in the same order.\n"
         "  Side jobs: Mira's cat, Old Fenn's braziers, Flick's candle race, fishing with Gil.\n"
+        "  CANDLE CUP: green arch, south-east corner of the Hollow. Race rival candles; boost pads, ? boxes (E), your flame stuns them.\n"
+        "  PETS: daze a wild pet with your thrown flame, then press E next to it. Pause > Pets. Tamsin sells treats.\n"
+        "  XP bar at the bottom: everything levels Wick up. Come back daily for streak gifts. Golden monsters pay big!\n"
         "  FISHING: walk up to a fishing post on a dock (the Wharf, or the Hollow's west docks) and press E to cast.\n"
         "    Wait for the SPLASH and '!! BITE !!', press E fast, then press E again when the white needle is in the GREEN.\n"
         "  Hats hide in secret corners - wear them via the mirror in Marrow's workshop.";
-    R->uiText(20 * s, 34 * s, wrap(R, t, s, W - 40 * s), s, COL_TEXT);
+    std::string one = wrap(R, t, s, W - 40 * s);
+    int lines = 1 + (int)std::count(one.begin(), one.end(), '\n');
+    size_t tips = t.find("TIPS");
+    if (lines * 9 * s > H - 52 * s && tips != std::string::npos) {
+        // too tall for one column: the tips go in a second column
+        float cw = (W - 60 * s) / 2;
+        R->uiText(20 * s, 34 * s, wrap(R, t.substr(0, tips), s, cw), s, COL_TEXT);
+        R->uiText(40 * s + cw, 34 * s, wrap(R, t.substr(tips), s, cw), s, COL_TEXT);
+    } else R->uiText(20 * s, 34 * s, one, s, COL_TEXT);
     R->uiTextCentered(W / 2, H - 12 * s, "Press Esc or Enter to go back", s, COL_DIM);
 }
 

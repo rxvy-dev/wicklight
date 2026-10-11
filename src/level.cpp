@@ -495,7 +495,7 @@ void buildEndless(Level& L, Game& g);
 void buildHome(Level& L, Game& g);
 void buildCity(Level& L, Game& g);
 void buildArena(Level& L, Game& g);
-void buildClimb(Level& L, Game& g);
+void buildRace(Level& L, Game& g);
 void applyExtraFlags(Game& g);
 
 void Game::buildLevel(LevelId id) {
@@ -518,7 +518,7 @@ void Game::buildLevel(LevelId id) {
         case LV_HOME: buildHome(lv, *this); break;
         case LV_CITY: buildCity(lv, *this); break;
         case LV_ARENA: buildArena(lv, *this); break;
-        case LV_CLIMB: buildClimb(lv, *this); break;
+        case LV_RACE: buildRace(lv, *this); break;
         default: break;
     }
     gridBuild();

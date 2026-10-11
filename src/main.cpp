@@ -111,6 +111,9 @@ int main(int argc, char** argv) {
     if (!showcasePath.empty()) { sdl::GL_SetSwapInterval(0); int rc = runShowcase(game, R, showcasePath, dw, dh); sdl::GL_DeleteContext(ctx); sdl::DestroyWindow(win); sdl::Quit(); return rc; }
     if (startLevel >= 0 && startLevel < LV_COUNT) { game.loadGame(); game.enterLevel((LevelId)startLevel, startSpawn); game.screen = SC_PLAY; if (getenv("WICKLIGHT_DEBUG_SHOP")) game.screen = SC_SHOP; if (getenv("WICKLIGHT_DEBUG_SCREEN")) game.screen = (Screen)atoi(getenv("WICKLIGHT_DEBUG_SCREEN"));
         if (const char* dp = getenv("WICKLIGHT_DEBUG_POS")) { float x, y, z, yw, pt = -0.2f; if (sscanf(dp, "%f,%f,%f,%f,%f", &x, &y, &z, &yw, &pt) >= 4) { game.pl.pos = game.pl.safePos = V3(x, y, z); game.camYaw = game.pl.yaw = yw; game.camPitch = pt; game.camTarget = game.pl.pos + V3(0, 1.65f, 0); } }
+        if (const char* rc = getenv("WICKLIGHT_DEBUG_RACE")) game.startCup(atoi(rc));
+        if (const char* pk = getenv("WICKLIGHT_DEBUG_PET")) { int k = atoi(pk) % 8; game.save.petLv[k] = 6; game.save.petName[k] = 3; game.save.activePet = k; game.petPos = game.pl.pos + V3(1.5f, 0, 1.5f); }
+        if (getenv("WICKLIGHT_DEBUG_GOLDEN")) { setenv("WICKLIGHT_GOLDEN", "1", 1); game.spawnEnemy(E_GLOOMLING, game.pl.pos + V3(std::sin(game.camYaw) * 4, 0.3f, std::cos(game.camYaw) * 4), -1); unsetenv("WICKLIGHT_GOLDEN"); }
         if (getenv("WICKLIGHT_DEBUG_BOSS") && game.lv.boss.type != B_NONE) { game.pl.pos = game.lv.boss.center + V3(-3, 0, -9); game.camYaw = 0.3f; game.startBoss(); } }
 
     SDL_GameController* pad = nullptr;

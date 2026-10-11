@@ -15,10 +15,12 @@ void collectExtra(Game& g, Pickup& p);
 bool talkExtra(Game& g, int ti);
 void fennLampLit(Game& g);
 bool talkPostgame(Game& g, int ti);
+bool talkRace(Game& g, int ti);
+bool talkPets(Game& g, int ti);
 
 // ------------------------------------------------------------------ text
 const char* levelName(LevelId id) {
-    static const char* n[] = {"Lumen Hollow", "The Sunken Wharf", "The Clockwood", "The Ashen Vaults", "The Lighthouse Spire", "The Junkyard of Lost Machines", "The Endless Dark", "Wick's Island", "Lumen City", "The Gauntlet", "The Rising Dark"};
+    static const char* n[] = {"Lumen Hollow", "The Sunken Wharf", "The Clockwood", "The Ashen Vaults", "The Lighthouse Spire", "The Junkyard of Lost Machines", "The Endless Dark", "Wick's Island", "Lumen City", "The Gauntlet", "The Candle Cup"};
     return (id >= 0 && id < LV_COUNT) ? n[id] : "?";
 }
 
@@ -131,7 +133,12 @@ void Game::writeSave() {
     }
     for (auto& l : save.voxLines) o << l << "\n";
     o << "hat " << save.hat << "\n" << "fish " << save.fishCaught << "\n" << "race " << save.raceBest << "\n";
-    o << "fun2 " << save.gauntletBest << " " << save.climbBest << " " << save.climbRuns << "\n";
+    o << "fun2 " << save.gauntletBest << " 0 0\n";
+    o << "cup " << save.raceRuns << " " << save.raceWins << " " << save.cupBest[0] << " " << save.cupBest[1] << " " << save.cupBest[2] << "\n";
+    o << "pets " << save.activePet << " " << save.treats << " " << save.petsCaught;
+    for (int k = 0; k < 8; k++) o << " " << save.petLv[k] << " " << save.petXp[k] << " " << save.petName[k];
+    o << "\n";
+    o << "prog " << save.wlvl << " " << save.wxp << " " << save.streak << " " << save.streakDay << " " << save.bestStreak << " " << save.goldenKills << "\n";
     o << "dye " << save.dye << "\n" << "stats " << save.kills << " " << save.bestCombo << " " << save.bounties << " " << save.rushBest << "\n";
     o << "bounty " << save.bountyDay << " " << save.bountyProg[0] << " " << save.bountyProg[1] << " " << save.bountyProg[2] << " " << save.bountyDone << "\n";
     for (auto& f : save.flags) o << "flag " << f << "\n";
@@ -172,7 +179,15 @@ bool Game::loadGame() {
         else if (key == "hat") { ls >> s.hat; if (s.hat < 0 || s.hat > 31) s.hat = 0; }
         else if (key == "fish") ls >> s.fishCaught;
         else if (key == "fun") ls >> s.gauntletBest;
-        else if (key == "fun2") ls >> s.gauntletBest >> s.climbBest >> s.climbRuns;
+        else if (key == "fun2") ls >> s.gauntletBest;
+        else if (key == "cup") { ls >> s.raceRuns >> s.raceWins; for (int& c : s.cupBest) { ls >> c; c = std::max(0, std::min(3, c)); } }
+        else if (key == "pets") {
+            ls >> s.activePet >> s.treats >> s.petsCaught;
+            for (int k = 0; k < 8; k++) { ls >> s.petLv[k] >> s.petXp[k] >> s.petName[k]; s.petLv[k] = std::max(0, std::min(10, s.petLv[k])); s.petXp[k] = std::max(0, s.petXp[k]); s.petName[k] = std::max(0, s.petName[k]); }
+            if (s.activePet < -1 || s.activePet > 7) s.activePet = -1;
+            if (s.treats < 0) s.treats = 0;
+        }
+        else if (key == "prog") { ls >> s.wlvl >> s.wxp >> s.streak >> s.streakDay >> s.bestStreak >> s.goldenKills; if (s.wlvl < 1) s.wlvl = 1; if (s.wxp < 0) s.wxp = 0; }
         else if (key == "dye") { ls >> s.dye; if (s.dye < 0 || s.dye > 7) s.dye = 0; }
         else if (key == "stats") ls >> s.kills >> s.bestCombo >> s.bounties >> s.rushBest;
         else if (key == "bounty") ls >> s.bountyDay >> s.bountyProg[0] >> s.bountyProg[1] >> s.bountyProg[2] >> s.bountyDone;
@@ -322,6 +337,8 @@ void Game::enterLevel(LevelId id, int spawn, bool fromSave) {
     bolts.clear(); pendingSpawns.clear(); floats.clear();
     pendingBlasts.clear(); killSlowT = 0;
     firewalls.clear(); grappling = false; ocT = 0; alarmT = 0; raceIdx = -1; fishState = 0; glitch = 0;
+    if (id != LV_RACE) { rcState = 0; rcPending = false; racers.clear(); }
+    wildPets.clear(); wildLevelId = -1;
     mining = false; tgtValid = false; bombs.clear(); sleepT = 0;
     if (id == LV_HOME) {
         collectForges();
@@ -363,6 +380,8 @@ void Game::startDialog(const std::vector<DialogLine>& lines, std::function<void(
 void Game::talk(int ti) {
     if (talkExtra(*this, ti)) return;
     if (talkPostgame(*this, ti)) return;
+    if (talkRace(*this, ti)) return;
+    if (talkPets(*this, ti)) return;
     const Talker& t = lv.talkers[ti];
     if (t.who == 0) {  // Marrow
         int hearts = countFlags("heart.");
@@ -545,6 +564,7 @@ void Game::collectPickup(Pickup& p) {
             audio::play(SFX_CATCH, 1, 1.3f);
             break;
         case PK_SHARD: {
+            gainXp(40, p.pos);
             int n = countFlags("shard.");
             audio::play(SFX_SHARD);
             if (n % 2 == 0) {
@@ -555,6 +575,7 @@ void Game::collectPickup(Pickup& p) {
             writeSave();
         } break;
         case PK_CANDLE: {
+            gainXp(25, p.pos);
             audio::play(SFX_CANDLE);
             int n = countFlags("candle.");
             burst(p.pos, hexColor(0xfff0c0), 24, 3, 0.08f, 3, 1.0f, -1);
@@ -716,7 +737,7 @@ void Game::updateWorldObjects(float dt) {
             p.pos = pos + V3(0, 0.2f, 0);
             if (g) { p.vel.x *= 0.8f; p.vel.z *= 0.8f; }
             // gentle magnet
-            float mag = 3.f + 3.f * upLevel("magnet");
+            float mag = 3.f + 3.f * upLevel("magnet") + petMagnet();
             if (p.life < 12.5f && len(p.pos - (pl.pos + V3(0, 0.6f, 0))) < mag) p.pos = lerp(p.pos, pl.pos + V3(0, 0.6f, 0), dt * 6);
         }
         if (len(p.pos - (pl.pos + V3(0, 0.6f, 0))) < (p.type == PK_HEART ? 1.8f : 1.2f)) collectPickup(p);
@@ -1006,6 +1027,8 @@ void Game::update(float dt, const InputState& in) {
     bool wasFishing = fishState > 0;
     InputState pin = in;
     if (updateFishing(dt, in)) pin = InputState();  // fishing: Wick stands still
+    if (lv.id == LV_RACE && rcState == 1) pin = InputState();  // on the grid for the countdown
+    if (raceNoPowers()) for (int a : {A_WARP, A_OVERCLOCK, A_FIREWALL, A_GRAPPLE}) { pin.pressed[a] = pin.down[a] = false; }
     updatePlayer(dt, pin);
     if (lv.id == LV_HOME && vox.active) {
         InputState masked = in;
@@ -1024,10 +1047,13 @@ void Game::update(float dt, const InputState& in) {
     updateExtras(dt, pin);
     updatePostgame(dt);
     updateFunModes(dt);
+    updateRace(dt, in);
+    bool usedE = lv.id == LV_RACE && rcState >= 1 && rcState <= 2;
+    updatePets(dt, pin, usedE);
     if (screen != SC_PLAY) return;
 
     // talkers
-    if (in.pressed[A_INTERACT] && !pl.dead && !wasFishing && fishState == 0) {
+    if (in.pressed[A_INTERACT] && !pl.dead && !wasFishing && fishState == 0 && !usedE) {
         bool talked = false;
         for (int i = 0; i < (int)lv.talkers.size(); i++)
             if (len(lv.talkers[i].pos - pl.pos) < 3.0f) { talk(i); talked = true; break; }

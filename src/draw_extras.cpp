@@ -26,8 +26,8 @@ static void beam(Renderer* R, V3 a, V3 b, float thick, V3 col, float emis, float
 
 // ------------------------------------------------------------------ hats
 float hatLift(int hat) {
-    static const float L[] = {0, 0, 0.1f, 0.06f, 0.1f, 0.4f, 0.42f, 0.5f, 0.12f, 0.2f, 0.08f};
-    return (hat >= 0 && hat <= 10) ? L[hat] : 0;
+    static const float L[] = {0, 0, 0.1f, 0.06f, 0.1f, 0.4f, 0.42f, 0.5f, 0.12f, 0.2f, 0.08f, 0.12f, 0.0f, 0.06f, 0.1f, 0.12f};
+    return (hat >= 0 && hat <= 15) ? L[hat] : 0;
 }
 
 void drawHat(Renderer* R, const M4& base, int hat, float headY, float t, float alpha) {
@@ -84,6 +84,34 @@ void drawHat(Renderer* R, const M4& base, int hat, float headY, float t, float a
             }
             R->drawPart(PM_CYL, h * M4::translate(V3(0, 0.18f, 0)) * M4::scale(V3(0.03f, 0.18f, 0.03f)), T_METAL, V3(1, 1, 1), 0, 0, alpha);
             R->drawPart(PM_CUBE, h * M4::translate(V3(0, 0.27f, 0)) * M4::rotY(t * 18) * M4::scale(V3(0.5f, 0.02f, 0.08f)), T_WHITE, hexColor(0xe03030), 0.2f, 0, alpha);
+            break;
+        case 11:  // cosy beanie
+            R->drawPart(PM_SPHERE, h * M4::translate(V3(0, 0.02f, 0)) * M4::scale(V3(0.47f, 0.3f, 0.47f)), T_CLOTH, hexColor(0x3a7ad0), 0, 0, alpha);
+            R->drawPart(PM_CYL, h * M4::translate(V3(0, -0.04f, 0)) * M4::scale(V3(0.48f, 0.08f, 0.48f)), T_CLOTH, hexColor(0xf0f0f0), 0, 0, alpha);
+            R->drawPart(PM_SPHERE, h * M4::translate(V3(0, 0.18f, 0)) * M4::scale(V3(0.16f, 0.16f, 0.16f)), T_CLOTH, hexColor(0xf0f0f0), 0, 0, alpha);
+            break;
+        case 12:  // halo, floating over the flame
+            R->drawPart(PM_CYL, h * M4::translate(V3(0, 0.75f + 0.04f * std::sin(t * 2), 0)) * M4::scale(V3(0.5f, 0.04f, 0.5f)), T_GOLD, V3(1, 1, 1), 2.0f, 0, alpha);
+            break;
+        case 13:  // flower crown
+            for (int k = 0; k < 7; k++) {
+                float a = k * TAU / 7;
+                static const uint32_t C[4] = {0xff7090, 0xffe060, 0xffffff, 0xc080ff};
+                R->drawPart(PM_SPHERE, h * M4::translate(V3(std::sin(a) * 0.21f, 0.0f, std::cos(a) * 0.21f)) * M4::scale(V3(0.12f, 0.08f, 0.12f)), T_WHITE, hexColor(C[k % 4]), 0.3f, 0, alpha);
+            }
+            R->drawPart(PM_CYL, h * M4::translate(V3(0, -0.02f, 0)) * M4::scale(V3(0.44f, 0.04f, 0.44f)), T_LEAVES, hexColor(0x50a040), 0, 0, alpha);
+            break;
+        case 14:  // antlers
+            for (int s = -1; s <= 1; s += 2) {
+                M4 a = h * M4::translate(V3(0.15f * s, 0.0f, 0)) * M4::rotZ(-0.5f * s);
+                R->drawPart(PM_CUBE, a * M4::translate(V3(0, 0.15f, 0)) * M4::scale(V3(0.05f, 0.3f, 0.05f)), T_BARK, hexColor(0xa07850), 0, 0, alpha);
+                R->drawPart(PM_CUBE, a * M4::translate(V3(0.06f * s, 0.22f, 0)) * M4::rotZ(-0.8f * s) * M4::scale(V3(0.04f, 0.16f, 0.04f)), T_BARK, hexColor(0xa07850), 0, 0, alpha);
+            }
+            break;
+        case 15:  // racing helmet
+            R->drawPart(PM_SPHERE, h * M4::translate(V3(0, 0.02f, 0)) * M4::scale(V3(0.5f, 0.34f, 0.5f)), T_WHITE, hexColor(0xd03030), 0.2f, 0, alpha);
+            R->drawPart(PM_CUBE, h * M4::translate(V3(0, 0.12f, 0)) * M4::scale(V3(0.08f, 0.04f, 0.5f)), T_WHITE, hexColor(0xf0f0f0), 0.3f, 0, alpha);
+            R->drawPart(PM_CUBE, h * M4::translate(V3(0, -0.06f, 0.22f)) * M4::scale(V3(0.36f, 0.1f, 0.04f)), T_WHITE, hexColor(0x202838), 1.0f, 0, alpha);
             break;
         case 10:  // FBI cap
             R->drawPart(PM_SPHERE, h * M4::translate(V3(0, 0.0f, 0)) * M4::scale(V3(0.46f, 0.24f, 0.46f)), T_CLOTH, hexColor(0x1a2440), 0, 0, alpha);

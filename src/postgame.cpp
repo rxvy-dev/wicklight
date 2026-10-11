@@ -22,7 +22,7 @@ static const BountyDef BOUNTY[BK_KINDS] = {
     {8, 16, "Light %d braziers"},
     {1, 2, "Defeat %d bosses (any - the Endless Dark's count)"},
     {300, 800, "Collect %d embers"},
-    {1, 2, "Win silver or gold in Flick's race %d time(s)"},
+    {1, 2, "Finish 1st or 2nd in a race (Flick's or the Candle Cup) %d time(s)"},
 };
 static int today() { return (int)((long long)time(nullptr) / 86400); }
 static void dayBounties(int day, int kind[3], int target[3]) {
@@ -69,6 +69,7 @@ void Game::bountyEvent(int kind, int amount) {
         save.bountyDone |= 1 << i;
         save.bounties++;
         save.embers += 150;
+        gainXp(80, pl.pos);
         bool all = save.bountyDone == 7;
         if (all) { save.embers += 300; setFlag("bounty.allday"); }
         showToast("BOUNTY COMPLETE!", all ? "+150 embers, and +300 for clearing today's board!" : "+150 embers - check the Night Board for more");
@@ -85,7 +86,7 @@ static const std::vector<Trophy>& trophies() {
         {"Shard Hoarder", "Find all 7 Ember Shards", [](const Game& g) { return g.countFlags("shard.") >= 7; }},
         {"Remembrance", "Find all 10 Memory Candles", [](const Game& g) { return g.countFlags("candle.") >= 10; }},
         {"Hatter", "Find 5 hats", [](const Game& g) { return g.countFlags("hat.") >= 5; }},
-        {"Mad Hatter", "Find all 10 hats", [](const Game& g) { return g.countFlags("hat.") >= 10; }},
+        {"Mad Hatter", "Find all 15 hats", [](const Game& g) { return g.countFlags("hat.") >= 15; }},
         {"Angler", "Catch 10 fish", [](const Game& g) { return g.save.fishCaught >= 10; }},
         {"Solid Gold", "Catch the Golden Carp", [](const Game& g) { return g.has("fish.3"); }},
         {"Speed Candle", "Win gold in Flick's race", [](const Game& g) { return g.has("race.m3"); }},
@@ -111,6 +112,16 @@ static const std::vector<Trophy>& trophies() {
         {"Untouchable", "Beat a boss without getting hit", [](const Game& g) { return g.has("boss.flawless"); }},
         {"New Look", "Buy a flame dye from Wren", [](const Game& g) { return g.countFlags("dye.") >= 1; }},
         {"Rainbow Wick", "Buy the Rainbow flame", [](const Game& g) { return g.has("dye.7"); }},
+        {"Podium", "Win a trophy in the Candle Cup", [](const Game& g) { return g.save.cupBest[0] + g.save.cupBest[1] + g.save.cupBest[2] > 0; }},
+        {"Inferno Champion", "Win GOLD in the Inferno Cup", [](const Game& g) { return g.save.cupBest[2] >= 3; }},
+        {"Pet Pal", "Catch your first pet", [](const Game& g) { return g.save.petsCaught >= 1; }},
+        {"Full Menagerie", "Catch all 8 kinds of pet", [](const Game& g) { return g.save.petsCaught >= 8; }},
+        {"Evolution", "Raise a pet to level 5", [](const Game& g) { for (int k = 0; k < 8; k++) if (g.save.petLv[k] >= 5) return true; return false; }},
+        {"Best Buddy", "Raise a pet to level 10", [](const Game& g) { for (int k = 0; k < 8; k++) if (g.save.petLv[k] >= 10) return true; return false; }},
+        {"Rising Star", "Reach Wick level 10", [](const Game& g) { return g.save.wlvl >= 10; }},
+        {"Living Legend", "Reach Wick level 30", [](const Game& g) { return g.save.wlvl >= 30; }},
+        {"Regular", "Play 7 days in a row", [](const Game& g) { return g.save.bestStreak >= 7; }},
+        {"Gold Digger", "Burn 10 golden monsters", [](const Game& g) { return g.save.goldenKills >= 10; }},
     };
     return T;
 }
@@ -123,6 +134,7 @@ void Game::checkTrophies() {
         std::string f = "tro." + std::to_string(i);
         if (has(f) || !T[i].got(*this)) continue;
         setFlag(f);
+        gainXp(50);
         showToast(std::string("TROPHY: ") + T[i].name, T[i].desc + std::string("   (") + std::to_string(trophyCount(*this)) + "/" + std::to_string(T.size()) + ")");
         audio::play(SFX_HEART, 0.6f, 1.4f);
         writeSave();

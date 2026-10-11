@@ -9,9 +9,9 @@
 extern int g_dmgKind;
 static Rng xrng(9001);
 
-static const int NUM_HATS = 10;
+static const int NUM_HATS = 15;
 const char* hatName(int h) {
-    static const char* n[] = {"No hat", "Cat Ears", "Lamplighter's Cap", "Fisher's Hat", "Golden Crown", "Top Hat", "Party Hat", "Wizard Hat", "Viking Helmet", "Propeller Cap", "FBI Cap"};
+    static const char* n[] = {"No hat", "Cat Ears", "Lamplighter's Cap", "Fisher's Hat", "Golden Crown", "Top Hat", "Party Hat", "Wizard Hat", "Viking Helmet", "Propeller Cap", "FBI Cap", "Cosy Beanie", "Halo", "Flower Crown", "Antlers", "Racing Helmet"};
     return (h >= 0 && h <= NUM_HATS) ? n[h] : "?";
 }
 static const char* FISH_NAMES[4] = {"MINNOW", "GLOWFIN", "GLOOMEEL", "GOLDEN CARP"};
@@ -247,6 +247,8 @@ bool Game::updateFishing(float dt, const InputState& in) {
                     setFlag("fish." + std::to_string(k));
                     save.fishCaught++;
                     bountyEvent(2, 1);
+                    gainXp(12 + k * 10, bob);
+                    petXp(save.activePet, 5);
                     save.embers += FISH_EMBERS[k];
                     showToast(std::string("CAUGHT A ") + FISH_NAMES[k] + "!", "+" + std::to_string(FISH_EMBERS[k]) + " embers" + (first ? "   (new species!)" : ""));
                     audio::play(SFX_SHARD, 0.9f, k == 3 ? 0.8f : 1.2f);

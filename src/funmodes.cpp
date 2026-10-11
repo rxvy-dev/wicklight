@@ -3,7 +3,6 @@
 //                chain-reaction explosions, turbo, endless bloom, giant flame, jelly enemies, slow-mo kills
 //  THE GAUNTLET  an arena of endless waves, each one stranger than the last (swarms, moth storms, FBI raids,
 //                low gravity, everything-explodes...), with mini-bosses every 5 waves
-//  THE RISING DARK  an endless tower to climb while the Hush's tide rises underneath you
 #include "builder.h"
 #include <cstdio>
 #include <algorithm>
@@ -107,6 +106,11 @@ void Game::enemyDied(Enemy& e) {
     if (toy(3)) { confetti(*this, c, 40); audio::playAt(SFX_BLIP, c, 0.8f, 2.4f); }
     if (toy(9)) killSlowT = 0.45f;
     if (lv.id == LV_ARENA && gMod == 8 && gState == 1) dropEmbers(e.pos, 6);
+    // XP for Wick and the buddy, and the golden jackpot
+    bool big = e.type == E_GLOOMKING || e.type == E_MEGABOT;
+    gainXp(big ? 25 : 4, e.pos);
+    petXp(save.activePet, big ? 10 : 3);
+    if (e.golden) goldenKilled(e);
 }
 
 // ------------------------------------------------------------------ the Gauntlet
@@ -253,6 +257,7 @@ static void updateGauntlet(Game& g, float dt) {
             g.dropEmbers(g.pl.pos + V3(0, 1, 2), emb);
             g.dropWax(g.pl.pos + V3(1, 0, 1)); g.dropWax(g.pl.pos + V3(-1, 0, 1));
             g.showToast("WAVE " + std::to_string(g.gWave) + " CLEARED!", "the crowd goes wild   (+" + std::to_string(emb) + " embers)");
+            g.gainXp(10 + 2 * g.gWave, g.pl.pos);
             fireworks(g, V3(0, 0, 0), 6);
             g.writeSave();
         }
@@ -265,128 +270,21 @@ static void updateGauntlet(Game& g, float dt) {
     }
 }
 
-// ------------------------------------------------------------------ the Rising Dark: an endless climb
-// A tower of floating platforms spiralling up into the night. The Hush's tide rises underneath, faster and faster.
-// Jump, warp to hooks, grapple, ride the lifts - how high can you get before the dark catches you?
-void buildClimb(Level& L, Game& g) {
-    LB b(L);
-    L.name = "The Rising Dark";
-    L.song = SONG_FINAL;
-    L.env.skyTop = hexColor(0x050318); L.env.skyHorizon = hexColor(0x2a1a4a);
-    L.env.fogColor = hexColor(0x140c28); L.env.fogDensity = 0.012f;
-    L.env.ambSky = V3(0.3f, 0.26f, 0.42f); L.env.ambGround = V3(0.12f, 0.08f, 0.16f);
-    L.env.sunColor = V3(0.4f, 0.35f, 0.6f); L.env.stars = 1.6f; L.env.moonSize = 0.1f;
-    L.killY = -1000;  // the tide is what kills you here
-    g.climbOn = false; g.climbH = 0; g.tideY = -7; g.tideSpeed = 1.1f;
-    Rng r(hash32(1234u + (uint32_t)g.save.climbRuns * 7919u));  // a new tower every run
-    // the base
-    b.slab(-5, -5, 5, 5, 0, T_MARBLE, T_STONEBRICK, 3);
-    b.spawn(V3(0, 0, -2), 0);
-    b.arch(V3(-3.6f, 0, -2.5f), 2.2f, 3.4f, 0.6f, T_MARBLE, false);
-    b.exit(AABB(V3(-4.1f, 0, -3.6f), V3(-3.7f, 3, -1.4f)), LV_HUB, 10, "", "", "Back to Lumen Hollow");
-    b.hint(AABB(V3(-5, -1, -5), V3(5, 4, 5)), "THE RISING DARK. Climb! The tide starts rising as soon as you leave this floor. Jump, warp to hooks, grapple, ride the lifts. How high can you go?");
-    // the spire everything spirals around
-    L.decor.cylinder(M4::translate(V3(0, 500, 0)) * M4::scale(V3(3, 1000, 3)), T_STONEBRICK, 12, false, 200);
-    // Platforms go round the spire at a steady radius. Each step's angle is worked out from the edge-to-edge gap we
-    // want, so every jump is makeable (Wick jumps ~2.2 high and ~4 across) and nothing ends up stacked on top.
-    V3 prev(0, 0, 0); float prevHw = 5, prevRad = 0, liftExtra = 0;
-    float ang = r.range(0, 6.28f);
-    L.route.push_back({0, V3(0, 0, 0)});
-    for (int i = 0; i < 420; i++) {
-        float y = prev.y;
-        int kind = r.f() < 0.62f ? 0 : (r.f() < 0.6f ? 1 : 2);  // 0 jump, 1 hook gap, 2 moving lift
-        if (i < 3) kind = 0;
-        float hw = r.range(1.3f, 2.1f) - std::min(0.4f, i * 0.002f);
-        float rad = r.range(7.0f, 9.5f);
-        float gap = kind == 1 ? r.range(3.5f, 5.5f) : r.range(0.8f, 2.4f + std::min(0.3f, i * 0.002f));
-        float dy = kind == 1 ? r.range(3.2f, 4.8f) : r.range(0.8f, 1.5f);
-        V3 c;
-        if (i == 0) {
-            c = V3(std::sin(ang) * (5 + hw + gap), y + dy, std::cos(ang) * (5 + hw + gap));
-            rad = 5 + hw + gap;
-        } else {
-            float d = prevHw + hw + gap + liftExtra;           // centre-to-centre distance we want
-            float cs = (prevRad * prevRad + rad * rad - d * d) / (2 * prevRad * rad);
-            ang += std::acos(clampf(cs, -1.f, 1.f));
-            c = V3(std::sin(ang) * rad, y + dy, std::cos(ang) * rad);
-            // the slabs are square, so make sure the boxes themselves don't overlap
-            for (int k = 0; k < 40 && std::max(std::fabs(c.x - prev.x), std::fabs(c.z - prev.z)) - prevHw - hw < 0.9f; k++) {
-                ang += 0.03f;
-                c = V3(std::sin(ang) * rad, y + dy, std::cos(ang) * rad);
-            }
-        }
-        prevRad = rad;
-        liftExtra = 0;
-        int tile = (i / 25) % 2 ? T_MARBLE : T_STONEBRICK;
-        if (kind == 2) {
-            // a lift that slides between this spot and a point further round
-            V3 off = norm(V3(c.z, 0, -c.x)) * 3.0f;  // slides forward round the tower; the next platform waits beyond it
-            liftExtra = 3.0f;
-            b.mover(AABB(c + V3(-hw, -0.4f, -hw), c + V3(hw, 0, hw)), V3(0, 0, 0), off, 3.6f, r.f(), T_BRASS, T_METAL);
-        } else b.slab(c.x - hw, c.z - hw, c.x + hw, c.z + hw, c.y, tile, T_STONEBRICK, 0.6f);
-        if (kind == 1) b.anchor(c + V3(0, 2.2f, 0));
-        if (r.f() < 0.22f) { Pickup p; p.type = PK_EMBER; p.pos = c + V3(0, 1.0f, 0); p.value = 3; p.life = 1e9f; L.pickups.push_back(p); }
-        if (i % 6 == 0) b.light(c + V3(0, 2.5f, 0), 8, i % 12 ? hexColor(0xffb060) : hexColor(0xa070ff), 0.9f);
-        if (i % 25 == 24) {  // a height marker every 25 platforms
-            L.decor.emis = 1.5f; L.decor.color = hexColor(0x80e0ff);
-            L.decor.cube(M4::translate(V3(0, c.y, 0)) * M4::scale(V3(6.4f, 0.3f, 6.4f)), T_WHITE);
-            L.decor.emis = 0; L.decor.color = V3(1, 1, 1);
-        }
-        L.route.push_back({kind == 1 ? 1 : kind == 2 ? 9 : 0, c});  // op 9 = a lift (it moves, the bot skips those)
-        prev = c; prevHw = hw;
-    }
-    b.emitter(AABB(V3(-14, 0, -14), V3(14, 60, 14)), 4, 10);
-}
-
-static void climbFinish(Game& g, int h) {
-    g.save.climbRuns++;
-    bool best = h > g.save.climbBest;
-    if (best) g.save.climbBest = h;
-    g.save.embers += h / 2;
-    g.writeSave();
-}
-
-static void updateClimb(Game& g, float dt) {
-    if (g.climbLast >= 0) {
-        g.showToast("THE DARK GOT YOU AT " + std::to_string(g.climbLast) + "m", "best " + std::to_string(g.save.climbBest) + "m   (+" + std::to_string(g.climbLast / 2) + " embers)   - climb again!");
-        g.climbLast = -1;
-    }
-    if (g.pl.dead) return;
-    if (!g.climbOn) {
-        if (g.pl.pos.y > 0.6f || len(flatXZ(g.pl.pos)) > 5.5f) { g.climbOn = true; audio::play(SFX_ROAR, 0.7f, 0.6f); g.statusMsg = "THE DARK IS RISING! CLIMB!"; g.statusT = 2.5f; }
-        return;
-    }
-    g.climbH = std::max(g.climbH, (int)g.pl.pos.y);
-    // the tide speeds up over time, and never falls too far behind
-    g.tideSpeed = std::min(3.2f, g.tideSpeed + dt * 0.012f);
-    g.tideY += g.tideSpeed * dt;
-    if (g.tideY < g.pl.pos.y - 22) g.tideY = g.pl.pos.y - 22;
-    if (g.pl.pos.y < g.tideY + 0.2f) {
-        climbFinish(g, g.climbH);
-        g.burst(g.pl.pos + V3(0, 1, 0), hexColor(0x6a3aaa), 50, 6, 0.2f, 2, 1.2f, 0);
-        g.killPlayer();
-    }
-    // milestones
-    static int lastMile = 0;
-    int mile = g.climbH / 50;
-    if (mile > lastMile && mile > 0) { g.showToast(std::to_string(mile * 50) + " METRES!", g.climbH > g.save.climbBest ? "a new record!" : "keep going!"); audio::play(SFX_BELL, 0.7f, 1.4f); }
-    lastMile = mile;
-    if (g.fxTick(0.08f) && !g.headless && g.R) {
-        Particle q; q.pos = V3(frng.range(-14, 14), g.tideY + 0.3f, frng.range(-14, 14)) ; q.vel = V3(0, frng.range(1, 3), 0);
-        q.color = hexColor(0x8050d0); q.alpha = 0.8f; q.size = 0.4f; q.grow = 0.6f; q.life = q.maxLife = 1.4f; q.kind = 2;
-        g.R->spawn(q);
-    }
-}
-
-// the tide, drawn as a slab of living shadow
+// the race, pets and golden monsters draw through here too
+void drawRaceWorld(Game& g, Renderer* R);
+void drawPetsWorld(Game& g, Renderer* R);
+void drawGoldenAuras(Game& g, Renderer* R);
+void raceLights(Game& g, Renderer* R);
+void petLights(Game& g, Renderer* R);
+void goldenLights(Game& g, Renderer* R);
+void drawRaceHUD(Game& g);
+void drawPetsHUD(Game& g);
+void drawProgressHUD(Game& g);
+void updateProgress(Game& g, float dt);
 void drawFunWorld(Game& g, Renderer* R) {
-    if (g.lv.id != LV_CLIMB || R->shadowPass) return;
-    float y = g.climbOn || g.pl.dead ? g.tideY : -7;
-    R->drawPart(PM_CUBE, M4::translate(V3(0, y - 15, 0)) * M4::scale(V3(90, 30, 90)), T_SHADOW, V3(1, 1, 1), 0.2f, 0, 0.92f);
-    for (int k = 0; k < 24; k++) {
-        float a = k * TAU / 24 + g.time * 0.2f;
-        R->drawPart(PM_SPHERE, M4::translate(V3(std::sin(a) * 12, y + 0.2f + 0.3f * std::sin(g.time * 2 + k), std::cos(a) * 12)) * M4::scale(V3(3, 1, 3)), T_EYE, V3(1, 1, 1), 0.6f, 0, 0.6f);
-    }
+    drawRaceWorld(g, R);
+    drawPetsWorld(g, R);
+    drawGoldenAuras(g, R);
 }
 
 // ------------------------------------------------------------------ per step
@@ -407,7 +305,7 @@ void Game::updateFunModes(float dt) {
         }
     }
     if (lv.id == LV_ARENA) updateGauntlet(*this, dt);
-    if (lv.id == LV_CLIMB) updateClimb(*this, dt);
+    updateProgress(*this, dt);
     // party mode: the music gets a horn now and then
     if (toy(3) && fxTick(6.f) && !enemies.empty()) audio::play(SFX_BELL, 0.25f, 2.2f);
 }
@@ -424,16 +322,9 @@ void drawFunHUD(Game& g) {
         R->uiTextCentered(W / 2, 34 * s, b, s * 1.3f, g.gState == 2 ? C4(0x80ff90) : C4(0xff9060));
         if (g.gState == 2) R->uiTextCentered(W / 2, 46 * s, "next wave in " + std::to_string(std::max(0, (int)std::ceil(5 - g.gT))), s, COL_DIM);
     }
-    if (g.lv.id == LV_CLIMB) {
-        char b[128];
-        snprintf(b, sizeof(b), "HEIGHT %dm   BEST %dm", g.climbOn ? g.climbH : 0, g.save.climbBest);
-        R->uiTextCentered(W / 2, 34 * s, b, s * 1.4f, C4(0xd0c0ff));
-        if (g.climbOn) {
-            float gap = g.pl.pos.y - g.tideY;
-            char t[64]; snprintf(t, sizeof(t), "the dark is %.0fm below you", std::max(0.f, gap));
-            R->uiTextCentered(W / 2, 47 * s, t, s, gap < 6 ? (std::fmod(g.time * 4, 1.f) < 0.5f ? C4(0xff4060) : C4(0xb080ff)) : COL_DIM);
-        }
-    }
+    drawRaceHUD(g);
+    drawPetsHUD(g);
+    drawProgressHUD(g);
     // a little reminder of what's switched on
     int on = 0; for (int i = 0; i < NUM_TOYS; i++) if (g.toy(i)) on++;
     if (on) R->uiText(8 * s, R->winH - 34 * s, "TOYS ON: " + std::to_string(on) + " (pause > Toy Box)", s, C4(0x70ff80, 0.7f));
@@ -441,6 +332,7 @@ void drawFunHUD(Game& g) {
 
 // party lights
 void funLights(Game& g, Renderer* R) {
+    raceLights(g, R); petLights(g, R); goldenLights(g, R);
     if (!g.toy(3)) return;
     for (int k = 0; k < 3; k++) {
         float a = g.time * 1.3f + k * TAU / 3;
